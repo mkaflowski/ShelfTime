@@ -2,11 +2,14 @@ package kaf.audiobookshelfwearos.app
 
 import android.app.Activity
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.widget.Toast
 import com.fasterxml.jackson.core.json.JsonReadFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import kaf.audiobookshelfwearos.app.data.Library
+import kaf.audiobookshelfwearos.app.data.LibraryItem
 import kaf.audiobookshelfwearos.app.data.User
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import okhttp3.Call
@@ -32,7 +35,7 @@ class ApiHandler(private val context: Context) {
         .addHeader("Authorization", "Bearer ${userDataManager.token}")
         .build()
 
-    fun getAllLibraries(callback : (List<Library>) -> Unit) {
+    fun getAllLibraries(callback: (List<Library>) -> Unit) {
         val request = getRequest("/api/libraries")
 
         client.newCall(request).enqueue(object : Callback {
@@ -46,8 +49,53 @@ class ApiHandler(private val context: Context) {
                     // Extract token from the JSON response
                     val jsonResponse = responseBody?.let { JSONObject(it) }
                     val libraries = jsonResponse?.getJSONArray("libraries")
-                    val librariesMapped: List<Library> = jacksonMapper.readValue(libraries.toString())
+                    val librariesMapped: List<Library> =
+                        jacksonMapper.readValue(libraries.toString())
                     callback(librariesMapped)
+                } else {
+                    showToast(response.code.toString())
+                }
+            }
+        })
+    }
+
+    fun getCover(id: String, callback: (Bitmap) -> Unit) {
+        val request = getRequest("/api/items/$id/cover")
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                e.message?.let { showToast(it) }
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    val bitmap = BitmapFactory.decodeStream(response.body!!.byteStream())
+                    callback(bitmap)
+                } else {
+                    showToast(response.code.toString())
+                }
+            }
+        })
+    }
+
+    fun getLibraryItems(id: String, callback: (List<LibraryItem>) -> Unit) {
+        val request = getRequest("/api/libraries/$id/items?sort=updatedAt")
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                e.message?.let { showToast(it) }
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    val responseBody = response.body?.string()
+                    // Extract token from the JSON response
+                    val jsonResponse = responseBody?.let { JSONObject(it) }
+                    val results = jsonResponse?.getJSONArray("results")
+                    Timber.d(results?.length().toString())
+                    val items: List<LibraryItem> =
+                        jacksonMapper.readValue<List<LibraryItem>>(results.toString()).reversed()
+                    callback(items)
                 } else {
                     showToast(response.code.toString())
                 }

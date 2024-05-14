@@ -1,13 +1,18 @@
 package kaf.audiobookshelfwearos.app.viewmodels
 
+import android.graphics.Bitmap
+import android.util.ArrayMap
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 
 import kaf.audiobookshelfwearos.app.ApiHandler
 import kaf.audiobookshelfwearos.app.data.Library
+import kaf.audiobookshelfwearos.app.data.LibraryItem
 import kaf.audiobookshelfwearos.app.data.User
+import kotlinx.coroutines.launch
 
 class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
     private val _loginResult = MutableLiveData<User>()
@@ -16,15 +21,57 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
     private val _libraries = MutableLiveData<List<Library>>(listOf())
     val libraries: LiveData<List<Library>> = _libraries
 
+    private val _coverImages = MutableLiveData<Map<String, Bitmap>>()
+    val coverImages: LiveData<Map<String, Bitmap>> get() = _coverImages
+
     fun login() {
         apiHandler.login { _loginResult.postValue(it) }
     }
 
-    fun getLibraries(){
-        apiHandler.getAllLibraries { _libraries.postValue(it) }
+    fun getCoverImage(itemId: String) {
+        val currentImages = _coverImages.value ?: mapOf()
+
+        if (currentImages.containsKey(itemId)) {
+            _coverImages.postValue(currentImages)
+            return  // If the image is already loaded, do nothing.
+        }
+
+        apiHandler.getCover(itemId) { bitmap ->
+            bitmap.let {
+                // Post new state with updated image.
+                val updatedImages = currentImages.toMutableMap()
+                updatedImages[itemId] = it
+                _coverImages.postValue(updatedImages)
+            }
+        }
     }
 
-    class ApiViewModelFactory(private val apiHandler: ApiHandler) :ViewModelProvider.NewInstanceFactory(){
+    fun getLibraries() {
+        apiHandler.getAllLibraries { libraries ->
+            val totalLibraries = libraries.size
+            var completedLibraries = 0
+
+            for (library in libraries) {
+                apiHandler.getLibraryItems(library.id) { libraryItems ->
+                    library.libraryItems.addAll(libraryItems)
+                    completedLibraries++
+
+                    if (completedLibraries == totalLibraries) {
+                        _libraries.postValue(libraries)
+                    }
+                }
+            }
+
+            // If there are no libraries, post the empty list immediately
+            if (totalLibraries == 0) {
+                _libraries.postValue(libraries)
+            }
+        }
+    }
+
+
+    class ApiViewModelFactory(private val apiHandler: ApiHandler) :
+        ViewModelProvider.NewInstanceFactory() {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return ApiViewModel(apiHandler = apiHandler) as T
         }

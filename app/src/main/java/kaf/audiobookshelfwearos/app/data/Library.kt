@@ -16,5 +16,6 @@ data class Library(
     val lastScan: Long = 0,
     val lastScanVersion: String = "",
     val createdAt: Long = 0,
-    val lastUpdate: Long = 0
+    val lastUpdate: Long = 0,
+    val libraryItems: ArrayList<LibraryItem> = arrayListOf()
 )
