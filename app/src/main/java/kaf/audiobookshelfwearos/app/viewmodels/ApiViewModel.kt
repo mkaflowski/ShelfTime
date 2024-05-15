@@ -25,7 +25,10 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
     val coverImages: LiveData<Map<String, Bitmap>> get() = _coverImages
 
     fun login() {
-        apiHandler.login { _loginResult.postValue(it) }
+        viewModelScope.launch{
+            val user = apiHandler.login()
+            _loginResult.postValue(user)
+        }
     }
 
     fun getCoverImage(itemId: String) {
@@ -36,7 +39,8 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
             return  // If the image is already loaded, do nothing.
         }
 
-        apiHandler.getCover(itemId) { bitmap ->
+        viewModelScope.launch {
+            val bitmap = apiHandler.getCover(itemId)
             bitmap.let {
                 // Post new state with updated image.
                 val updatedImages = currentImages.toMutableMap()
@@ -47,12 +51,14 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
     }
 
     fun getLibraries() {
-        apiHandler.getAllLibraries { libraries ->
+        viewModelScope.launch {
+            val libraries = apiHandler.getAllLibraries()
             val totalLibraries = libraries.size
             var completedLibraries = 0
 
             for (library in libraries) {
-                apiHandler.getLibraryItems(library.id) { libraryItems ->
+                viewModelScope.launch {
+                    val libraryItems = apiHandler.getLibraryItems(library.id)
                     library.libraryItems.addAll(libraryItems)
                     completedLibraries++
 

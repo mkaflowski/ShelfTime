@@ -12,16 +12,14 @@ import kaf.audiobookshelfwearos.app.data.Library
 import kaf.audiobookshelfwearos.app.data.LibraryItem
 import kaf.audiobookshelfwearos.app.data.User
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
-import okhttp3.Call
-import okhttp3.Callback
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
-import okhttp3.Response
 import org.json.JSONObject
 import timber.log.Timber
-import java.io.IOException
 
 
 class ApiHandler(private val context: Context) {
@@ -35,114 +33,74 @@ class ApiHandler(private val context: Context) {
         .addHeader("Authorization", "Bearer ${userDataManager.token}")
         .build()
 
-    fun getAllLibraries(callback: (List<Library>) -> Unit) {
-        val request = getRequest("/api/libraries")
+    suspend fun getAllLibraries(): List<Library> {
+        return withContext(Dispatchers.IO) {
+            val request = getRequest("/api/libraries")
 
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                e.message?.let { showToast(it) }
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) showToast(response.code.toString())
+                val responseBody = response.body?.string()
+                // Extract token from the JSON response
+                val jsonResponse = responseBody?.let { JSONObject(it) }
+                val libraries = jsonResponse?.getJSONArray("libraries")
+                return@use jacksonMapper.readValue<List<Library>>(libraries.toString())
             }
-
-            override fun onResponse(call: Call, response: Response) {
-                if (response.isSuccessful) {
-                    val responseBody = response.body?.string()
-                    // Extract token from the JSON response
-                    val jsonResponse = responseBody?.let { JSONObject(it) }
-                    val libraries = jsonResponse?.getJSONArray("libraries")
-                    val librariesMapped: List<Library> =
-                        jacksonMapper.readValue(libraries.toString())
-                    callback(librariesMapped)
-                } else {
-                    showToast(response.code.toString())
-                }
-            }
-        })
-    }
-
-    fun getCover(id: String, callback: (Bitmap) -> Unit) {
-        val request = getRequest("/api/items/$id/cover")
-
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                e.message?.let { showToast(it) }
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                if (response.isSuccessful) {
-                    val bitmap = BitmapFactory.decodeStream(response.body!!.byteStream())
-                    callback(bitmap)
-                } else {
-                    showToast(response.code.toString())
-                }
-            }
-        })
-    }
-
-    fun getLibraryItems(id: String, callback: (List<LibraryItem>) -> Unit) {
-        val request = getRequest("/api/libraries/$id/items?sort=updatedAt")
-
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                e.message?.let { showToast(it) }
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                if (response.isSuccessful) {
-                    val responseBody = response.body?.string()
-                    // Extract token from the JSON response
-                    val jsonResponse = responseBody?.let { JSONObject(it) }
-                    val results = jsonResponse?.getJSONArray("results")
-                    Timber.d(results?.length().toString())
-                    val items: List<LibraryItem> =
-                        jacksonMapper.readValue<List<LibraryItem>>(results.toString()).reversed()
-                    callback(items)
-                } else {
-                    showToast(response.code.toString())
-                }
-            }
-        })
-    }
-
-    fun login(callback: (User) -> Unit) {
-        val jsonBody = JSONObject().apply {
-            put("username", userDataManager.login)
-            put("password", userDataManager.password)
         }
 
-        val requestBody =
-            RequestBody.create("application/json".toMediaTypeOrNull(), jsonBody.toString())
+    }
 
-        val request = Request.Builder()
-            .url(userDataManager.getCompleteAddress() + "/login")
-            .post(requestBody)
-            .addHeader("Content-Type", "application/json")
-            .build()
+    suspend fun getCover(id: String): Bitmap {
+        return withContext(Dispatchers.IO) {
+            val request = getRequest("/api/items/$id/cover")
 
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                Timber.tag("Login").e("Failed to login: %s", e.message)
-                showToast("Failed to login: ${e.message}")
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) showToast(response.code.toString())
+                return@use BitmapFactory.decodeStream(response.body!!.byteStream())
+            }
+        }
+    }
+
+    suspend fun getLibraryItems(id: String): List<LibraryItem> {
+        return withContext(Dispatchers.IO) {
+            val request = getRequest("/api/libraries/$id/items?sort=updatedAt")
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) showToast(response.code.toString())
+                val responseBody = response.body?.string()
+                // Extract token from the JSON response
+                val jsonResponse = responseBody?.let { JSONObject(it) }
+                val results = jsonResponse?.getJSONArray("results")
+                Timber.d(results?.length().toString())
+                val items: List<LibraryItem> =
+                    jacksonMapper.readValue<List<LibraryItem>>(results.toString()).reversed()
+                return@use items
+            }
+        }
+    }
+
+    suspend fun login(): User {
+        return withContext(Dispatchers.IO) {
+            val jsonBody = JSONObject().apply {
+                put("username", userDataManager.login)
+                put("password", userDataManager.password)
             }
 
-            override fun onResponse(call: Call, response: Response) {
-                if (response.isSuccessful) {
-                    val responseBody = response.body?.string()
-                    Timber.tag("Login").d("Login successful: %s", responseBody)
+            val requestBody =
+                RequestBody.create("application/json".toMediaTypeOrNull(), jsonBody.toString())
 
-                    // Extract token from the JSON response
-                    val jsonResponse = JSONObject(responseBody)
-                    val user = jsonResponse.getJSONObject("user")
-                    val userMapped: User =
-                        jacksonMapper.readValue(user.toString())
-                    callback(userMapped)
+            val request = Request.Builder()
+                .url(userDataManager.getCompleteAddress() + "/login")
+                .post(requestBody)
+                .addHeader("Content-Type", "application/json")
+                .build()
 
-                    // Handle successful login
-                } else {
-                    Timber.tag("Login").e("Login failed: %s", response.code)
-                    showToast("Login error: ${response.code}")
-                }
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) showToast(response.code.toString())
+                val responseBody = response.body?.string()
+                val jsonResponse = responseBody?.let { JSONObject(it) }
+                val user = jsonResponse?.getJSONObject("user")
+                return@use jacksonMapper.readValue<User>(user.toString())
             }
-        })
+        }
     }
 
     private fun showToast(text: String) {

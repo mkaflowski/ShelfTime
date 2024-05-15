@@ -32,7 +32,6 @@ import kaf.audiobookshelfwearos.R
 import kaf.audiobookshelfwearos.app.ApiHandler
 import kaf.audiobookshelfwearos.app.data.Library
 import kaf.audiobookshelfwearos.app.data.LibraryItem
-import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import kaf.audiobookshelfwearos.app.viewmodels.ApiViewModel
 import timber.log.Timber
 
@@ -47,8 +46,6 @@ class BookListActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val userDataManager = UserDataManager(this)
 
         viewModel.loginResult.observe(
             this
@@ -82,7 +79,6 @@ class BookListActivity : ComponentActivity() {
 
     @Composable
     private fun Library(library: Library) {
-//        Text(text = "Library: ${library.name}")
         LazyColumn(
             Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally
         ) {
