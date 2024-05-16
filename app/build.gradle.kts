@@ -72,6 +72,7 @@ dependencies {
     implementation("androidx.compose.runtime:runtime-livedata:1.6.7")
     implementation("androidx.compose.material3:material3:1.2.1")
     implementation("io.coil-kt:coil-compose:2.2.2")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation("androidx.datastore:datastore-core-android:1.1.1")
     implementation("com.jakewharton.timber:timber:5.0.1")

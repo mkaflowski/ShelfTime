@@ -84,7 +84,14 @@ class LoginActivity : ComponentActivity() {
         ) { user ->
             Timber.d(user.token)
             userDataManager.token = user.token
-            startActivity(Intent(this, BookListActivity::class.java))
+//            startActivity(Intent(this, BookListActivity::class.java))
+            val intent = Intent(this, ChapterListActivity::class.java).apply {
+                putExtra(
+                    "id",
+                    "5ba58a9e-b39b-4a3e-bd22-228be1c89499"
+                )
+            }
+            startActivity(intent)
         }
 
         loginButton.setOnClickListener {

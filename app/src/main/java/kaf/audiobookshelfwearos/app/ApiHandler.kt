@@ -60,9 +60,22 @@ class ApiHandler(private val context: Context) {
         }
     }
 
+    suspend fun getItem(id: String): LibraryItem {
+        return withContext(Dispatchers.IO) {
+            val request = getRequest("/api/items/$id?expanded=1&include=progress")
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) showToast(response.code.toString())
+                val responseBody = response.body?.string()
+                return@use jacksonMapper.readValue<LibraryItem>(responseBody.toString())
+            }
+        }
+    }
+
     suspend fun getLibraryItems(id: String): List<LibraryItem> {
         return withContext(Dispatchers.IO) {
             val request = getRequest("/api/libraries/$id/items?sort=updatedAt")
+
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) showToast(response.code.toString())
                 val responseBody = response.body?.string()
@@ -105,7 +118,7 @@ class ApiHandler(private val context: Context) {
 
     private fun showToast(text: String) {
         if (context is Activity)
-            (context as Activity).runOnUiThread {
+            context.runOnUiThread {
                 Toast.makeText(
                     context,
                     text,

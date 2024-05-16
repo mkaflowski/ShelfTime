@@ -21,6 +21,9 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
     private val _libraries = MutableLiveData<List<Library>>(listOf())
     val libraries: LiveData<List<Library>> = _libraries
 
+    private val _item = MutableLiveData<LibraryItem>(LibraryItem())
+    val item: LiveData<LibraryItem> = _item
+
     private val _coverImages = MutableLiveData<Map<String, Bitmap>>()
     val coverImages: LiveData<Map<String, Bitmap>> get() = _coverImages
 
@@ -47,6 +50,13 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
                 updatedImages[itemId] = it
                 _coverImages.postValue(updatedImages)
             }
+        }
+    }
+
+    fun getItem(itemId : String){
+        viewModelScope.launch{
+            val item = apiHandler.getItem(itemId)
+            _item.postValue(item)
         }
     }
 

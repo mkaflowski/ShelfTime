@@ -1,7 +1,6 @@
 package kaf.audiobookshelfwearos.app.data
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class LibraryItem(
@@ -24,10 +23,9 @@ data class LibraryItem(
     val numFiles: Int = 0,
     val size: Long = 0,
     val collapsedSeries: CollapsedSeries = CollapsedSeries(),
+    val userMediaProgress: UserMediaProgress = UserMediaProgress(),
     val progressLastUpdate: Long = 0
 ) {
-    val cover: String
-        get() = media.coverPath
     val title: String
         get() = media.metadata.title
 }

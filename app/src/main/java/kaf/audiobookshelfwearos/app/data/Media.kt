@@ -4,6 +4,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Media(
+    val libraryItemId: String = "",
+    val tracks: List<Track> = emptyList(),
+    val audioFiles: List<AudioFile> = emptyList(),
     val metadata: Metadata = Metadata(),
     val coverPath: String = "",
     val tags: List<String> = emptyList(),
