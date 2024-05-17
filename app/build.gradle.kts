@@ -86,6 +86,8 @@ dependencies {
     implementation("com.jakewharton.timber:timber:5.0.1")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.12.0")
+    implementation ("androidx.compose.material:material-icons-extended:1.6.7")
+    implementation ("com.google.android.exoplayer:exoplayer:2.19.1")
 
     androidTestImplementation(platform("androidx.compose:compose-bom:2023.08.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")

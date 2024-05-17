@@ -3,7 +3,8 @@
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.INTERNET" />
-
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-feature android:name="android.hardware.type.watch" />
 
     <application
@@ -13,11 +14,20 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault">
+        <service
+            android:name=".app.services.PlayerService"
+            android:enabled="true"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="true"></service>
+
         <activity
             android:name=".app.activities.BookListActivity"
             android:exported="false" />
         <activity
             android:name=".app.activities.ChapterListActivity"
+            android:exported="false" />
+        <activity
+            android:name=".app.activities.PlayerActivity"
             android:exported="false" />
 
         <uses-library
