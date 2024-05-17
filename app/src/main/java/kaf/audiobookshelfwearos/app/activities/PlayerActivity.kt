@@ -27,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -136,28 +137,30 @@ class PlayerActivity : ComponentActivity() {
             Text(text = "Playback position: ${currentPosition / 1000} sec", color = Color.White)
         }
 
-        // Register BroadcastReceiver to listen for track ended
-        trackEndedReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                when (intent?.action) {
-                    "$packageName.ACTION_PLAYING" -> {
-                        runOnUiThread {
+        DisposableEffect(Unit) {
+            val trackEndedReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    when (intent?.action) {
+                        "$packageName.ACTION_PLAYING" -> {
                             isPlaying = true // Update the UI state
                         }
-                    }
-                    "$packageName.ACTION_PAUSED" -> {
-                        runOnUiThread {
+                        "$packageName.ACTION_PAUSED" -> {
                             isPlaying = false // Update the UI state
                         }
                     }
                 }
             }
+            val filter = IntentFilter().apply {
+                addAction("$packageName.ACTION_PLAYING")
+                addAction("$packageName.ACTION_PAUSED")
+            }
+            this@PlayerActivity.registerReceiver(trackEndedReceiver, filter)
+
+            onDispose {
+                this@PlayerActivity.unregisterReceiver(trackEndedReceiver)
+            }
         }
-        val filter = IntentFilter().apply {
-            addAction("$packageName.ACTION_PLAYING")
-            addAction("$packageName.ACTION_PAUSED")
-        }
-        registerReceiver(trackEndedReceiver, filter)
+
     }
 
 
@@ -169,8 +172,6 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Unregister the receiver
-        unregisterReceiver(trackEndedReceiver)
         unbindService(connection)
         isBound = false
     }
