@@ -11,5 +11,4 @@ data class Track(
     val contentUrl: String = "",
     val mimeType: String = "",
     val metadata: AudioMetadata = AudioMetadata()
-
 )

@@ -1,10 +1,13 @@
 package kaf.audiobookshelfwearos.app.data
 
+import androidx.room.Entity
+import androidx.room.PrimaryKey
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 
 @JsonIgnoreProperties(ignoreUnknown = true)
+@Entity(tableName = "user_media_progress")
 data class UserMediaProgress(
-    val id: String = "",
+    @PrimaryKey val id: String = "",
     val libraryItemId: String = "",
     val episodeId: String? = null,
     val duration: Double = 0.0,

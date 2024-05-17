@@ -43,7 +43,7 @@ class ApiHandler(private val context: Context) {
                 // Extract token from the JSON response
                 val jsonResponse = responseBody?.let { JSONObject(it) }
                 val libraries = jsonResponse?.getJSONArray("libraries")
-                return@use jacksonMapper.readValue<List<Library>>(libraries.toString())
+                return@use jacksonMapper.readValue(libraries.toString())
             }
         }
 
