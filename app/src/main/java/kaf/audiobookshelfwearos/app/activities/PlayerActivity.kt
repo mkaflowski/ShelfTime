@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
-import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.IBinder
 import androidx.activity.ComponentActivity
@@ -30,9 +29,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,7 +44,6 @@ import kotlinx.coroutines.delay
 class PlayerActivity : ComponentActivity() {
     private var playerService: PlayerService? = null
     private var isBound = false
-    private lateinit var trackEndedReceiver: BroadcastReceiver
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -62,8 +60,15 @@ class PlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val itemId = intent.getStringExtra("id") ?: ""
+
         // Start the PlayerService
-        val intent = Intent(this, PlayerService::class.java)
+        val intent = Intent(this, PlayerService::class.java).apply {
+            putExtra(
+                "id",
+                itemId
+            )
+        }
         startService(intent)
         bindService(intent, connection, Context.BIND_AUTO_CREATE)
 
@@ -75,12 +80,13 @@ class PlayerActivity : ComponentActivity() {
     @Composable
     fun PlaybackControls() {
         var isPlaying by remember { mutableStateOf(false) }
-        var currentPosition by remember { mutableStateOf(0L) }
-        val coroutineScope = rememberCoroutineScope()
+        var currentPosition by remember { mutableLongStateOf(0L) }
+        var duration by remember { mutableLongStateOf(0L) }
         LaunchedEffect(Unit) {
             while (true) {
                 if (isBound) {
                     currentPosition = playerService?.getCurrentPosition() ?: 0L
+                    duration = playerService?.getDuration() ?: 0L
                 }
                 delay(1000)
             }
@@ -134,7 +140,7 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Text(text = "Playback position: ${currentPosition / 1000} sec", color = Color.White)
+            Text(text = "${timeToString(currentPosition / 1000)} / ${timeToString(duration / 1000)}", color = Color.White)
         }
 
         DisposableEffect(Unit) {
@@ -174,5 +180,18 @@ class PlayerActivity : ComponentActivity() {
         super.onDestroy()
         unbindService(connection)
         isBound = false
+    }
+
+    private fun timeToString(seconds: Long): String {
+        val hours = seconds / 3600
+        val minutes = (seconds % 3600) / 60
+        val secs = seconds % 60
+
+        val timeString = if (hours > 0) {
+            String.format("%02d:%02d:%02d", hours, minutes, secs)
+        } else {
+            String.format("%02d:%02d", minutes, secs)
+        }
+        return timeString
     }
 }

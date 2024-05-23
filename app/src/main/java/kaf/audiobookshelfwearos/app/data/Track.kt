@@ -1,6 +1,7 @@
 package kaf.audiobookshelfwearos.app.data
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Track(

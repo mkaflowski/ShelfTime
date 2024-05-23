@@ -130,7 +130,13 @@ class ChapterListActivity : ComponentActivity() {
                         .tag("BookItem")
                         .d(libraryItem?.title)
                 }
-                startActivity(Intent(this@ChapterListActivity, PlayerActivity::class.java))
+                val intent = Intent(this@ChapterListActivity, PlayerActivity::class.java).apply {
+                    putExtra(
+                        "id",
+                        item.id
+                    )
+                }
+                startActivity(intent)
             },
             modifier = Modifier
                 .fillMaxWidth()
