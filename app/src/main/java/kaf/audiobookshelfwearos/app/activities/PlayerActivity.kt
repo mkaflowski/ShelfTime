@@ -82,6 +82,7 @@ class PlayerActivity : ComponentActivity() {
         var isPlaying by remember { mutableStateOf(false) }
         var currentPosition by remember { mutableLongStateOf(0L) }
         var duration by remember { mutableLongStateOf(0L) }
+        var chapterTitle by remember { mutableStateOf("") }
         LaunchedEffect(Unit) {
             while (true) {
                 if (isBound) {
@@ -97,7 +98,7 @@ class PlayerActivity : ComponentActivity() {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = "Media info", color = Color.White)
+            Text(text = chapterTitle, color = Color.White)
             Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -153,12 +154,16 @@ class PlayerActivity : ComponentActivity() {
                         "$packageName.ACTION_PAUSED" -> {
                             isPlaying = false // Update the UI state
                         }
+                        "$packageName.ACTION_UPDATE_METADATA" -> {
+                            chapterTitle = intent.getStringExtra("CHAPTER_TITLE") ?: ""
+                        }
                     }
                 }
             }
             val filter = IntentFilter().apply {
                 addAction("$packageName.ACTION_PLAYING")
                 addAction("$packageName.ACTION_PAUSED")
+                addAction("$packageName.ACTION_UPDATE_METADATA")
             }
             this@PlayerActivity.registerReceiver(trackEndedReceiver, filter)
 

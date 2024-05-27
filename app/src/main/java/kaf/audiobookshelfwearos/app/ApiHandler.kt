@@ -11,15 +11,20 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import kaf.audiobookshelfwearos.app.data.Library
 import kaf.audiobookshelfwearos.app.data.LibraryItem
 import kaf.audiobookshelfwearos.app.data.User
+import kaf.audiobookshelfwearos.app.data.UserMediaProgress
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
+import okhttp3.Response
 import org.json.JSONObject
 import timber.log.Timber
+import java.io.IOException
 
 
 class ApiHandler(private val context: Context) {
@@ -88,6 +93,43 @@ class ApiHandler(private val context: Context) {
                 return@use items
             }
         }
+    }
+
+     fun updateProgress(userMediaProgress: UserMediaProgress) {
+         val jsonBody= JSONObject()
+         jsonBody.put("currentTime", userMediaProgress.currentTime)
+         jsonBody.put("lastUpdate", userMediaProgress.lastUpdate)
+
+         val requestBody =
+             RequestBody.create("application/json".toMediaTypeOrNull(), jsonBody.toString())
+
+         val url =
+             userDataManager.getCompleteAddress() + "/api/me/progress/" + userMediaProgress.libraryItemId
+
+         Timber.d(url)
+         val request = Request.Builder()
+             .url(url)
+             .patch(requestBody)
+             .addHeader("Authorization", "Bearer ${userDataManager.token}")
+             .build()
+
+         // Make the network call asynchronously
+         client.newCall(request).enqueue(object : Callback {
+             override fun onFailure(call: Call, e: IOException) {
+                 // Handle failure
+                 e.printStackTrace()
+             }
+
+             override fun onResponse(call: Call, response: Response) {
+                 // Handle success
+                 if (response.isSuccessful) {
+                     val responseBody = response.body?.string()
+                     println("Response: $responseBody")
+                 } else {
+                     println("Error: ${response.code}")
+                 }
+             }
+         })
     }
 
     suspend fun login(): User {

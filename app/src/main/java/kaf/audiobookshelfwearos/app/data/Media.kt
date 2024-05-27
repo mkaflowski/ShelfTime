@@ -13,6 +13,7 @@ data class Media(
     val numTracks: Int = 0,
     val numAudioFiles: Int = 0,
     val numChapters: Int = 0,
+    val chapters: List<Chapter> = emptyList(),
     val duration: Double = 0.0,
     val size: Long = 0,
     val ebookFileFormat: String? = ""

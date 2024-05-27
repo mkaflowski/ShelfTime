@@ -11,15 +11,20 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ConcatenatingMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import kaf.audiobookshelfwearos.app.ApiHandler
 import kaf.audiobookshelfwearos.app.MainApp
+import kaf.audiobookshelfwearos.app.data.Chapter
 import kaf.audiobookshelfwearos.app.data.LibraryItem
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
@@ -27,15 +32,20 @@ import timber.log.Timber
 
 class PlayerService : MediaSessionService() {
 
+    private val job = SupervisorJob()
+    private val scope = CoroutineScope(Dispatchers.IO + job)
+
     private val binder = LocalBinder()
     private lateinit var exoPlayer: ExoPlayer
     private val CHANNEL_ID = "PlayerServiceChannel"
+    private val START_OFFSET_SECONDS = 5
     private var mediaSession: MediaSession? = null
 
     private var playbackStartTime: Long = 0
     private var totalPlaybackTime: Long = 0
 
     private lateinit var audiobook: LibraryItem
+    val db = (applicationContext as MainApp).database
 
     inner class LocalBinder : Binder() {
         fun getService(): PlayerService = this@PlayerService
@@ -56,19 +66,26 @@ class PlayerService : MediaSessionService() {
         exoPlayer = ExoPlayer.Builder(this).build()
 
         exoPlayer.addListener(object : Player.Listener {
+            override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+                super.onMediaMetadataChanged(mediaMetadata)
+                Timber.d("mediaMetadata - " + mediaMetadata.trackNumber)
+                val index = mediaMetadata.trackNumber?.minus(1)
+                updateUIMetadata()
+            }
+
             override fun onPlaybackStateChanged(state: Int) {
                 when (state) {
-                    Player.STATE_BUFFERING -> Timber.tag("PlayerService")
+                    Player.STATE_BUFFERING -> Timber
                         .d("ExoPlayer is buffering")
 
-                    Player.STATE_READY -> Timber.tag("PlayerService").d("ExoPlayer is ready")
+                    Player.STATE_READY -> Timber.d("ExoPlayer is ready")
                     Player.STATE_ENDED -> {
-                        Timber.tag("PlayerService").d("ExoPlayer has ended")
+                        Timber.d("ExoPlayer has ended")
                         sendBroadcast(Intent("$packageName.ACTION_TRACK_ENDED"))
                     }
 
                     Player.STATE_IDLE -> {
-                        Timber.tag("PlayerService").d("ExoPlayer in idle")
+                        Timber.d("ExoPlayer in idle")
                     }
                 }
             }
@@ -80,6 +97,15 @@ class PlayerService : MediaSessionService() {
                     sendBroadcast(Intent("$packageName.ACTION_PLAYING"))
                 } else {
                     Timber.tag("PlayerService").d("ExoPlayer is paused")
+                    saveProgress()
+
+                    audiobook.userMediaProgress.lastUpdate = System.currentTimeMillis()
+                    audiobook.userMediaProgress.currentTime = getCurrentTotalPositionInS()
+                    scope.launch(Dispatchers.IO) {
+                        db.libraryItemDao().insertLibraryItem(audiobook)
+                    }
+                    ApiHandler(this@PlayerService).updateProgress(audiobook.userMediaProgress)
+
                     sendBroadcast(Intent("$packageName.ACTION_PAUSE"))
                     val currentTime = System.currentTimeMillis()
                     totalPlaybackTime += currentTime - playbackStartTime
@@ -90,12 +116,44 @@ class PlayerService : MediaSessionService() {
         })
     }
 
+    private fun saveProgress() {
+        Timber.d("getCurrentTotalPositionInS " + getCurrentTotalPositionInS())
+        Timber.d("progress " + audiobook.userMediaProgress.progress)
+        Timber.d("duration " + audiobook.userMediaProgress.duration)
+        Timber.d("episodeId " + audiobook.userMediaProgress.episodeId)
+        Timber.d("id " + audiobook.userMediaProgress.id)
+        Timber.d("currentTime " + audiobook.userMediaProgress.currentTime)
+        Timber.d("lastUpdate " + audiobook.userMediaProgress.lastUpdate)
+    }
+
+    private fun updateUIMetadata() {
+        val timeInS = getCurrentTotalPositionInS()
+
+        var currentChapter = Chapter()
+        for (chapter in audiobook.media.chapters) {
+            if (timeInS >= chapter.start && timeInS < chapter.end)
+                currentChapter = chapter
+        }
+
+        val intent = Intent("$packageName.ACTION_UPDATE_METADATA").apply {
+            putExtra("CHAPTER_TITLE", currentChapter.title)
+        }
+        sendBroadcast(intent)
+    }
+
+    private fun getCurrentTotalPositionInS(): Double {
+        val track = audiobook.media.tracks[exoPlayer.currentMediaItemIndex]
+        val timeInS = track.startOffset + exoPlayer.currentPosition / 1000
+        return timeInS
+    }
+
     // The user dismissed the app from the recent tasks
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player!!
         if (!player.playWhenReady
             || player.mediaItemCount == 0
-            || player.playbackState == Player.STATE_ENDED) {
+            || player.playbackState == Player.STATE_ENDED
+        ) {
             // Stop the service if not playing, continue playing in the background
             // otherwise.
             stopSelf()
@@ -106,12 +164,24 @@ class PlayerService : MediaSessionService() {
         mediaSession
 
     @OptIn(UnstableApi::class)
-    private fun setAudiobook(audiobook: LibraryItem) {
+    private fun setAudiobook(audiobook: LibraryItem, userTotalTime: Double) {
         this.audiobook = audiobook
         exoPlayer.clearMediaItems()
         val userDataManager = UserDataManager(this)
-        val url =
-            userDataManager.getCompleteAddress() + this.audiobook.media.tracks[0].contentUrl
+
+
+        //getting chapter by time
+        var totalDuration = 0.0
+        var trackIndex = 0
+        for (track in audiobook.media.tracks) {
+            totalDuration += track.duration
+            if (totalDuration > userTotalTime)
+                break
+            trackIndex++
+        }
+
+        val track = audiobook.media.tracks[trackIndex]
+        val userTrackTime = userTotalTime - track.startOffset
 
         val headers = hashMapOf<String, String>()
         headers["Authorization"] = "Bearer " + userDataManager.token;
@@ -120,24 +190,34 @@ class PlayerService : MediaSessionService() {
             .setAllowCrossProtocolRedirects(true)
             .setDefaultRequestProperties(headers)
 
-        // Build a media source using the data source factory
-        val mediaItem =
-            MediaItem.Builder()
-                .setMediaId("media-1")
-                .setUri(url)
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setArtist(audiobook.title)
-                        .setTitle(audiobook.title)
-                        .build()
-                )
-                .build()
+        val sources = arrayListOf<MediaSource>()
+        for (media in audiobook.media.tracks) {
+            // Build a media source using the data source factory
+            val url =
+                userDataManager.getCompleteAddress() + media.contentUrl
+            val mediaItem =
+                MediaItem.Builder()
+                    .setMediaId("media-index-" + media.index)
+                    .setUri(url)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setArtist(audiobook.media.metadata.authorName)
+                            .setTitle(audiobook.media.metadata.title)
+                            .build()
+                    )
+                    .build()
 
-        val mediaSource: MediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
-            .createMediaSource(mediaItem)
+            val mediaSource: MediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
+                .createMediaSource(mediaItem)
+            sources.add(mediaSource)
+
+            val concatenatingMediaSource = ConcatenatingMediaSource()
+            concatenatingMediaSource.addMediaSource(mediaSource)
+        }
 
         exoPlayer.run {
-            setMediaSource(mediaSource)
+            setMediaSources(sources)
+            seekTo(trackIndex, (userTrackTime.toLong() - START_OFFSET_SECONDS) * 1000)
             prepare()
             playWhenReady = true
         }
@@ -169,55 +249,16 @@ class PlayerService : MediaSessionService() {
 
         intent?.getStringExtra("id")?.let {
             GlobalScope.launch {
-                val db = (applicationContext as MainApp).database
                 db.libraryItemDao().getLibraryItemById(it)?.let {
                     withContext(Dispatchers.Main) {
-                        setAudiobook(it)
+                        setAudiobook(it, it.userMediaProgress.currentTime)
                     }
                 }
             }
         }
 
-//        startForeground(1, createNotification())
         return START_STICKY
     }
-
-//    private fun createNotification(): Notification {
-//        val channel = NotificationChannel(
-//            CHANNEL_ID,
-//            "Player Service Channel",
-//            NotificationManager.IMPORTANCE_DEFAULT
-//        )
-//        val manager = getSystemService(NotificationManager::class.java)
-//        manager.createNotificationChannel(channel)
-//
-//        val playPauseIntent = PendingIntent.getService(
-//            this, 0, Intent(this, PlayerService::class.java).apply {
-//                action = "ACTION_PLAY_PAUSE"
-//            }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-//        )
-//
-//        val rewindIntent = PendingIntent.getService(
-//            this, 0, Intent(this, PlayerService::class.java).apply {
-//                action = "ACTION_REWIND"
-//            }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-//        )
-//
-//        val fastForwardIntent = PendingIntent.getService(
-//            this, 0, Intent(this, PlayerService::class.java).apply {
-//                action = "ACTION_FAST_FORWARD"
-//            }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-//        )
-//
-//        return NotificationCompat.Builder(this, CHANNEL_ID)
-//            .setContentTitle("Player Service")
-//            .setContentText("Playing audio")
-//            .setSmallIcon(R.drawable.placeholder)
-//            .addAction(R.drawable.placeholder, "Rewind", rewindIntent)
-//            .addAction(R.drawable.placeholder, "Play/Pause", playPauseIntent)
-//            .addAction(R.drawable.placeholder, "Fast Forward", fastForwardIntent)
-//            .build()
-//    }
 
     fun getCurrentPosition(): Long {
         return exoPlayer.currentPosition
@@ -233,6 +274,7 @@ class PlayerService : MediaSessionService() {
             release()
             mediaSession = null
         }
+        job.cancel()
         super.onDestroy()
     }
 

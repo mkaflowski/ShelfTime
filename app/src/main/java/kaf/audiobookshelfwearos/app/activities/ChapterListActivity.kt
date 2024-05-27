@@ -38,6 +38,7 @@ import androidx.wear.compose.material.ButtonDefaults
 import androidx.wear.compose.material.Text
 import kaf.audiobookshelfwearos.app.ApiHandler
 import kaf.audiobookshelfwearos.app.MainApp
+import kaf.audiobookshelfwearos.app.data.Chapter
 import kaf.audiobookshelfwearos.app.data.LibraryItem
 import kaf.audiobookshelfwearos.app.data.Track
 import kaf.audiobookshelfwearos.app.viewmodels.ApiViewModel
@@ -105,9 +106,9 @@ class ChapterListActivity : ComponentActivity() {
                             )
                         }
 
-                        itemsIndexed(media.tracks) { index, _ ->
-                            Track(media.tracks[index])
-                            if (index != media.tracks.size - 1) {
+                        itemsIndexed(media.chapters) { index, _ ->
+                            Chapter(media.chapters[index])
+                            if (index != media.chapters.size - 1) {
                                 Divider()
                             }
                         }
@@ -194,7 +195,7 @@ class ChapterListActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun Track(track: Track) {
+    private fun Chapter(track: Chapter) {
         Column(modifier = Modifier
             .fillMaxWidth()
             .clickable {
@@ -214,7 +215,7 @@ class ChapterListActivity : ComponentActivity() {
             )
             Spacer(modifier = Modifier.height(5.dp))
             Text(
-                text = timeToString(track.startOffset),
+                text = timeToString(track.start),
                 fontSize = 10.sp,
                 color = Color.Green,
                 textAlign = TextAlign.Center,

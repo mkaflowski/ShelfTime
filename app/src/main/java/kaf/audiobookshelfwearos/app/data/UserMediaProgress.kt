@@ -12,10 +12,10 @@ data class UserMediaProgress(
     val episodeId: String? = null,
     val duration: Double = 0.0,
     val progress: Double = 0.0,
-    val currentTime: Double = 0.0,
+    var currentTime: Double = 0.0,
     val isFinished: Boolean = false,
     val hideFromContinueListening: Boolean = false,
-    val lastUpdate: Long = 0L,
+    var lastUpdate: Long = 0L,
     val startedAt: Long = 0L,
     val finishedAt: Long? = null
 )
