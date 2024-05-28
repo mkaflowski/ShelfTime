@@ -11,6 +11,7 @@ import android.os.IBinder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,8 +40,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.wear.compose.material.CircularProgressIndicator
+import androidx.wear.compose.material.MaterialTheme
 import kaf.audiobookshelfwearos.app.services.PlayerService
 import kotlinx.coroutines.delay
+import timber.log.Timber
 
 class PlayerActivity : ComponentActivity() {
     private var playerService: PlayerService? = null
@@ -79,7 +83,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     @Composable
-    fun PlaybackControls() {
+    fun PlaybackControls(isPreview: Boolean = false) {
         var isPlaying by remember { mutableStateOf(false) }
         var currentPosition by remember { mutableLongStateOf(0L) }
         var duration by remember { mutableLongStateOf(0L) }
@@ -117,18 +121,36 @@ class PlayerActivity : ComponentActivity() {
                         contentDescription = "Rewind"
                     )
                 }
-                IconButton(onClick = {
-                    val intent = Intent(this@PlayerActivity, PlayerService::class.java)
-                    intent.action = "ACTION_PLAY_PAUSE"
-                    startService(intent)
-                    isPlaying = !isPlaying
-                }) {
-                    Icon(
-                        tint = Color.White,
-                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play"
+                Box(
+                    contentAlignment = Alignment.Center
+                ) {
+                    var progressBar = 0f
+                    if (duration > 0)
+                        progressBar = currentPosition.toFloat() / duration
+                    Timber.d("duration $duration")
+                    Timber.d("currentPosition $currentPosition")
+                    Timber.d("progressBar $progressBar")
+                    CircularProgressIndicator(
+                        progress = progressBar,
+                        startAngle = 0f,
+                        indicatorColor = MaterialTheme.colors.secondary,
+                        trackColor = MaterialTheme.colors.onBackground.copy(alpha = 0.1f),
+                        strokeWidth = 3.dp
                     )
+                    IconButton(onClick = {
+                        val intent = Intent(this@PlayerActivity, PlayerService::class.java)
+                        intent.action = "ACTION_PLAY_PAUSE"
+                        startService(intent)
+                        isPlaying = !isPlaying
+                    }) {
+                        Icon(
+                            tint = Color.White,
+                            imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Play"
+                        )
+                    }
                 }
+
                 IconButton(onClick = {
                     val intent = Intent(this@PlayerActivity, PlayerService::class.java)
                     intent.action = "ACTION_FAST_FORWARD"
@@ -148,6 +170,7 @@ class PlayerActivity : ComponentActivity() {
             )
         }
 
+        if(!isPreview)
         DisposableEffect(Unit) {
             val trackEndedReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
@@ -181,10 +204,10 @@ class PlayerActivity : ComponentActivity() {
     }
 
 
-    @Preview(showBackground = true)
+    @Preview(showBackground = true, widthDp = 250, heightDp = 250)
     @Composable
     fun PlaybackControlsPreview() {
-        PlaybackControls()
+        PlaybackControls(isPreview = true)
     }
 
     override fun onDestroy() {

@@ -71,7 +71,7 @@ class PlayerService : MediaSessionService() {
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
                 super.onMediaMetadataChanged(mediaMetadata)
                 Timber.d("mediaMetadata - " + mediaMetadata.trackNumber)
-                val index = mediaMetadata.trackNumber?.minus(1)
+                mediaMetadata.trackNumber?.minus(1)
                 updateUIMetadata()
             }
 
