@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kaf.audiobookshelfwearos.app.services.PlayerService
@@ -98,7 +99,7 @@ class PlayerActivity : ComponentActivity() {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = chapterTitle, color = Color.White)
+            Text(text = chapterTitle, color = Color.White, textAlign = TextAlign.Center)
             Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -141,7 +142,10 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Text(text = "${timeToString(currentPosition / 1000)} / ${timeToString(duration / 1000)}", color = Color.White)
+            Text(
+                text = "${timeToString(currentPosition / 1000)} / ${timeToString(duration / 1000)}",
+                color = Color.White
+            )
         }
 
         DisposableEffect(Unit) {
@@ -151,9 +155,11 @@ class PlayerActivity : ComponentActivity() {
                         "$packageName.ACTION_PLAYING" -> {
                             isPlaying = true // Update the UI state
                         }
+
                         "$packageName.ACTION_PAUSED" -> {
                             isPlaying = false // Update the UI state
                         }
+
                         "$packageName.ACTION_UPDATE_METADATA" -> {
                             chapterTitle = intent.getStringExtra("CHAPTER_TITLE") ?: ""
                         }

@@ -20,6 +20,7 @@ import kaf.audiobookshelfwearos.app.ApiHandler
 import kaf.audiobookshelfwearos.app.MainApp
 import kaf.audiobookshelfwearos.app.data.Chapter
 import kaf.audiobookshelfwearos.app.data.LibraryItem
+import kaf.audiobookshelfwearos.app.data.room.AppDatabase
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +46,7 @@ class PlayerService : MediaSessionService() {
     private var totalPlaybackTime: Long = 0
 
     private lateinit var audiobook: LibraryItem
-    val db = (applicationContext as MainApp).database
+    private lateinit var db : AppDatabase
 
     inner class LocalBinder : Binder() {
         fun getService(): PlayerService = this@PlayerService
@@ -58,6 +59,7 @@ class PlayerService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        db = (applicationContext as MainApp).database
         createPlayer()
         mediaSession = MediaSession.Builder(this, exoPlayer).build()
     }
@@ -101,6 +103,7 @@ class PlayerService : MediaSessionService() {
 
                     audiobook.userMediaProgress.lastUpdate = System.currentTimeMillis()
                     audiobook.userMediaProgress.currentTime = getCurrentTotalPositionInS()
+                    audiobook.userMediaProgress.toUpload = true
                     scope.launch(Dispatchers.IO) {
                         db.libraryItemDao().insertLibraryItem(audiobook)
                     }

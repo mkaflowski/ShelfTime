@@ -21,7 +21,7 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
     private val _libraries = MutableLiveData<List<Library>>(listOf())
     val libraries: LiveData<List<Library>> = _libraries
 
-    private val _item = MutableLiveData<LibraryItem>(LibraryItem())
+    private val _item = MutableLiveData(LibraryItem())
     val item: LiveData<LibraryItem> = _item
 
     private val _coverImages = MutableLiveData<Map<String, Bitmap>>()

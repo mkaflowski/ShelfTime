@@ -17,5 +17,6 @@ data class UserMediaProgress(
     val hideFromContinueListening: Boolean = false,
     var lastUpdate: Long = 0L,
     val startedAt: Long = 0L,
-    val finishedAt: Long? = null
+    val finishedAt: Long? = null,
+    var toUpload: Boolean = false
 )

@@ -13,7 +13,10 @@ import kaf.audiobookshelfwearos.app.data.LibraryItem
 import kaf.audiobookshelfwearos.app.data.User
 import kaf.audiobookshelfwearos.app.data.UserMediaProgress
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.Callback
@@ -32,6 +35,7 @@ class ApiHandler(private val context: Context) {
     private var jacksonMapper =
         ObjectMapper().enable(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature())
     private val userDataManager = UserDataManager(context)
+    private val db = (context.applicationContext as MainApp).database
 
     private fun getRequest(endPoint: String) = Request.Builder()
         .url(userDataManager.getCompleteAddress() + endPoint)
@@ -72,7 +76,14 @@ class ApiHandler(private val context: Context) {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) showToast(response.code.toString())
                 val responseBody = response.body?.string()
-                return@use jacksonMapper.readValue<LibraryItem>(responseBody.toString())
+                val libraryItem = jacksonMapper.readValue<LibraryItem>(responseBody.toString())
+                val localLibraryItem = db.libraryItemDao().getLibraryItemById(id)
+                localLibraryItem?.let {
+                    if (it.userMediaProgress.lastUpdate > libraryItem.userMediaProgress.lastUpdate)
+                        libraryItem.userMediaProgress = localLibraryItem.userMediaProgress
+                }
+
+                return@use libraryItem
             }
         }
     }
@@ -95,41 +106,65 @@ class ApiHandler(private val context: Context) {
         }
     }
 
-     fun updateProgress(userMediaProgress: UserMediaProgress) {
-         val jsonBody= JSONObject()
-         jsonBody.put("currentTime", userMediaProgress.currentTime)
-         jsonBody.put("lastUpdate", userMediaProgress.lastUpdate)
+    fun updateProgress(userMediaProgress: UserMediaProgress) {
+        val job = SupervisorJob()
+        val scope = CoroutineScope(Dispatchers.IO + job)
 
-         val requestBody =
-             RequestBody.create("application/json".toMediaTypeOrNull(), jsonBody.toString())
+        scope.launch {
+            try {
+                val serverItem = getItem(userMediaProgress.libraryItemId)
 
-         val url =
-             userDataManager.getCompleteAddress() + "/api/me/progress/" + userMediaProgress.libraryItemId
+                if (serverItem.userMediaProgress.lastUpdate > userMediaProgress.lastUpdate) {
+                    Timber.d("Progress on server is more recent. Not uploading")
+                    userMediaProgress.toUpload = false
+                    db.userMediaProgressDao().insertUserMediaProgress(userMediaProgress)
+                    return@launch
+                }
 
-         Timber.d(url)
-         val request = Request.Builder()
-             .url(url)
-             .patch(requestBody)
-             .addHeader("Authorization", "Bearer ${userDataManager.token}")
-             .build()
+                Timber.d("Uploading progress...")
+                uploadProgress(userMediaProgress)
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to update progress")
+            } finally {
+                job.cancel()
+            }
+        }
+    }
 
-         // Make the network call asynchronously
-         client.newCall(request).enqueue(object : Callback {
-             override fun onFailure(call: Call, e: IOException) {
-                 // Handle failure
-                 e.printStackTrace()
-             }
+    private suspend fun uploadProgress(userMediaProgress: UserMediaProgress) {
+        val jsonBody = JSONObject().apply {
+            put("currentTime", userMediaProgress.currentTime)
+            put("lastUpdate", userMediaProgress.lastUpdate)
+        }
 
-             override fun onResponse(call: Call, response: Response) {
-                 // Handle success
-                 if (response.isSuccessful) {
-                     val responseBody = response.body?.string()
-                     println("Response: $responseBody")
-                 } else {
-                     println("Error: ${response.code}")
-                 }
-             }
-         })
+        val requestBody = RequestBody.create("application/json".toMediaTypeOrNull(), jsonBody.toString())
+        val url = userDataManager.getCompleteAddress() + "/api/me/progress/" + userMediaProgress.libraryItemId
+        val request = Request.Builder()
+            .url(url)
+            .patch(requestBody)
+            .addHeader("Authorization", "Bearer ${userDataManager.token}")
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                Timber.w("Error: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                response.use {
+                    if (it.isSuccessful) {
+                        val responseBody = it.body?.string()
+                        userMediaProgress.toUpload = false
+                        CoroutineScope(Dispatchers.IO).launch {
+                            db.userMediaProgressDao().insertUserMediaProgress(userMediaProgress)
+                        }
+                        Timber.d("Progress uploaded. Response: $responseBody")
+                    } else {
+                        Timber.w("Error: ${response.code}")
+                    }
+                }
+            }
+        })
     }
 
     suspend fun login(): User {

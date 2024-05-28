@@ -31,7 +31,7 @@ data class LibraryItem(
     val size: Long = 0,
     val collapsedSeries: CollapsedSeries = CollapsedSeries(),
     @Embedded(prefix = "progress_")
-    val userMediaProgress: UserMediaProgress = UserMediaProgress(),
+    var userMediaProgress: UserMediaProgress = UserMediaProgress(),
     val userMediaProgressId: String? = null,
     val progressLastUpdate: Long = 0
 ) {
