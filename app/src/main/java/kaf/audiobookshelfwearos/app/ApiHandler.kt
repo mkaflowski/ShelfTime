@@ -28,10 +28,16 @@ import okhttp3.Response
 import org.json.JSONObject
 import timber.log.Timber
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 
 class ApiHandler(private val context: Context) {
-    private var client = OkHttpClient()
+    private var client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
     private var jacksonMapper =
         ObjectMapper().enable(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature())
     private val userDataManager = UserDataManager(context)

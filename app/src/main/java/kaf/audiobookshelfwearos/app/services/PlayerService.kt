@@ -1,6 +1,7 @@
 package kaf.audiobookshelfwearos.app.services
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Binder
 import android.os.IBinder
 import androidx.annotation.OptIn
@@ -11,6 +12,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.offline.Download
+import androidx.media3.exoplayer.offline.DownloadManager
+import androidx.media3.exoplayer.offline.DownloadRequest
+import androidx.media3.exoplayer.offline.DownloadService.buildAddDownloadIntent
 import androidx.media3.exoplayer.source.ConcatenatingMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
@@ -46,7 +51,7 @@ class PlayerService : MediaSessionService() {
     private var totalPlaybackTime: Long = 0
 
     private lateinit var audiobook: LibraryItem
-    private lateinit var db : AppDatabase
+    private lateinit var db: AppDatabase
 
     inner class LocalBinder : Binder() {
         fun getService(): PlayerService = this@PlayerService
@@ -230,6 +235,7 @@ class PlayerService : MediaSessionService() {
         return totalPlaybackTime
     }
 
+    @OptIn(UnstableApi::class)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         when (intent?.action) {
@@ -243,6 +249,20 @@ class PlayerService : MediaSessionService() {
 
             "ACTION_REWIND" -> {
                 exoPlayer.seekTo(exoPlayer.currentPosition - 10000) // Rewind 10 seconds
+
+                val userDataManager = UserDataManager(this)
+                val track = audiobook.media.tracks[exoPlayer.currentMediaItemIndex]
+                val url = userDataManager.getCompleteAddress() + track.contentUrl
+                Timber.d("Downloading url = $url")
+                Timber.d("Downloaded = "+track.isDownloaded(this))
+                val downloadRequest = DownloadRequest.Builder(
+                    track.id,
+                    Uri.parse(url)
+                ).build()
+
+                val downloadIntent: Intent =
+                    buildAddDownloadIntent(this, MyDownloadService::class.java, downloadRequest, false)
+                startService(downloadIntent);
             }
 
             "ACTION_FAST_FORWARD" -> {
@@ -270,6 +290,9 @@ class PlayerService : MediaSessionService() {
     fun getDuration(): Long {
         return exoPlayer.duration
     }
+
+
+
 
     override fun onDestroy() {
         mediaSession?.run {

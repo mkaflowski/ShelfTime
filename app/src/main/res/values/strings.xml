@@ -5,4 +5,5 @@
     values-round/strings.xml for round devices.
     -->
     <string name="hello_world">From the Square world,\nHello, %1$s!</string>
+    <string name="exo_download_notification_channel_name">Download</string>
 </resources>
