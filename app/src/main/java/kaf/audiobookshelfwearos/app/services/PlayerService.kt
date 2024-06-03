@@ -1,7 +1,7 @@
 package kaf.audiobookshelfwearos.app.services
 
+import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Binder
 import android.os.IBinder
 import androidx.annotation.OptIn
@@ -11,12 +11,12 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.offline.Download
-import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService.buildAddDownloadIntent
 import androidx.media3.exoplayer.source.ConcatenatingMediaSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.session.MediaSession
@@ -105,15 +105,6 @@ class PlayerService : MediaSessionService() {
                 } else {
                     Timber.tag("PlayerService").d("ExoPlayer is paused")
                     saveProgress()
-
-                    audiobook.userMediaProgress.lastUpdate = System.currentTimeMillis()
-                    audiobook.userMediaProgress.currentTime = getCurrentTotalPositionInS()
-                    audiobook.userMediaProgress.toUpload = true
-                    scope.launch(Dispatchers.IO) {
-                        db.libraryItemDao().insertLibraryItem(audiobook)
-                    }
-                    ApiHandler(this@PlayerService).updateProgress(audiobook.userMediaProgress)
-
                     sendBroadcast(Intent("$packageName.ACTION_PAUSE"))
                     val currentTime = System.currentTimeMillis()
                     totalPlaybackTime += currentTime - playbackStartTime
@@ -132,6 +123,14 @@ class PlayerService : MediaSessionService() {
         Timber.d("id " + audiobook.userMediaProgress.id)
         Timber.d("currentTime " + audiobook.userMediaProgress.currentTime)
         Timber.d("lastUpdate " + audiobook.userMediaProgress.lastUpdate)
+
+        audiobook.userMediaProgress.lastUpdate = System.currentTimeMillis()
+        audiobook.userMediaProgress.currentTime = getCurrentTotalPositionInS()
+        audiobook.userMediaProgress.toUpload = true
+        scope.launch(Dispatchers.IO) {
+            db.libraryItemDao().insertLibraryItem(audiobook)
+        }
+        ApiHandler(this@PlayerService).updateProgress(audiobook.userMediaProgress)
     }
 
     private fun updateUIMetadata() {
@@ -188,8 +187,7 @@ class PlayerService : MediaSessionService() {
             trackIndex++
         }
 
-        val track = audiobook.media.tracks[trackIndex]
-        val userTrackTime = userTotalTime - track.startOffset
+        val userTrackTime = userTotalTime - audiobook.media.tracks[trackIndex].startOffset
 
         val headers = hashMapOf<String, String>()
         headers["Authorization"] = "Bearer " + userDataManager.token;
@@ -199,13 +197,13 @@ class PlayerService : MediaSessionService() {
             .setDefaultRequestProperties(headers)
 
         val sources = arrayListOf<MediaSource>()
-        for (media in audiobook.media.tracks) {
-            // Build a media source using the data source factory
+        for (track in audiobook.media.tracks) {
             val url =
-                userDataManager.getCompleteAddress() + media.contentUrl
+                userDataManager.getCompleteAddress() + track.contentUrl
+
             val mediaItem =
                 MediaItem.Builder()
-                    .setMediaId("media-index-" + media.index)
+                    .setMediaId("track-index-" + track.index)
                     .setUri(url)
                     .setMediaMetadata(
                         MediaMetadata.Builder()
@@ -215,7 +213,20 @@ class PlayerService : MediaSessionService() {
                     )
                     .build()
 
-            val mediaSource: MediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
+            // Build a track source using the data source factory
+            val downloaded = track.isDownloaded(this)
+            Timber.d("${track.index} downloaded = $downloaded")
+
+            val downloadCache = MyDownloadService.getDownloadCache(this)
+
+            // Create a read-only cache data source factory using the download cache.
+            val cacheDataSourceFactory: DataSource.Factory =
+                CacheDataSource.Factory()
+                    .setCache(downloadCache)
+                    .setUpstreamDataSourceFactory(dataSourceFactory)
+                    .setCacheWriteDataSinkFactory(null) // Disable writing.
+
+            val mediaSource: MediaSource = ProgressiveMediaSource.Factory(cacheDataSourceFactory)
                 .createMediaSource(mediaItem)
             sources.add(mediaSource)
 
@@ -225,6 +236,7 @@ class PlayerService : MediaSessionService() {
 
         exoPlayer.run {
             setMediaSources(sources)
+            seekToDefaultPosition(trackIndex)
             seekTo(trackIndex, (userTrackTime.toLong() - START_OFFSET_SECONDS) * 1000)
             prepare()
             playWhenReady = true
@@ -249,20 +261,6 @@ class PlayerService : MediaSessionService() {
 
             "ACTION_REWIND" -> {
                 exoPlayer.seekTo(exoPlayer.currentPosition - 10000) // Rewind 10 seconds
-
-                val userDataManager = UserDataManager(this)
-                val track = audiobook.media.tracks[exoPlayer.currentMediaItemIndex]
-                val url = userDataManager.getCompleteAddress() + track.contentUrl
-                Timber.d("Downloading url = $url")
-                Timber.d("Downloaded = "+track.isDownloaded(this))
-                val downloadRequest = DownloadRequest.Builder(
-                    track.id,
-                    Uri.parse(url)
-                ).build()
-
-                val downloadIntent: Intent =
-                    buildAddDownloadIntent(this, MyDownloadService::class.java, downloadRequest, false)
-                startService(downloadIntent);
             }
 
             "ACTION_FAST_FORWARD" -> {
@@ -274,7 +272,10 @@ class PlayerService : MediaSessionService() {
             GlobalScope.launch {
                 db.libraryItemDao().getLibraryItemById(it)?.let {
                     withContext(Dispatchers.Main) {
-                        setAudiobook(it, it.userMediaProgress.currentTime)
+                        var time = intent.getDoubleExtra("time", -1.0)
+                        if (time < 0)
+                            time = it.userMediaProgress.currentTime
+                        setAudiobook(it, time)
                     }
                 }
             }
@@ -292,8 +293,6 @@ class PlayerService : MediaSessionService() {
     }
 
 
-
-
     override fun onDestroy() {
         mediaSession?.run {
             player.release()
@@ -302,6 +301,22 @@ class PlayerService : MediaSessionService() {
         }
         job.cancel()
         super.onDestroy()
+    }
+
+    companion object {
+        fun setAudiobook(context: Context, item: LibraryItem, time: Double = -1.0) {
+            val serviceIntent = Intent(context, PlayerService::class.java).apply {
+                putExtra(
+                    "id",
+                    item.id
+                )
+                putExtra(
+                    "time",
+                    time
+                )
+            }
+            context.startService(serviceIntent)
+        }
     }
 
 }

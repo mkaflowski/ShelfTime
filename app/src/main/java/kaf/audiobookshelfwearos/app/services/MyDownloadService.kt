@@ -2,21 +2,26 @@ package kaf.audiobookshelfwearos.app.services
 
 import android.app.Notification
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.NoOpCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadNotificationHelper
+import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
 import androidx.media3.exoplayer.scheduler.PlatformScheduler
 import androidx.media3.exoplayer.scheduler.Requirements
 import androidx.media3.exoplayer.scheduler.Scheduler
 import kaf.audiobookshelfwearos.R
+import kaf.audiobookshelfwearos.app.data.Track
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import timber.log.Timber
 import java.io.File
@@ -71,8 +76,61 @@ class MyDownloadService : DownloadService(
     companion object {
         private lateinit var downloadManager: DownloadManager
         private lateinit var databaseProvider: StandaloneDatabaseProvider
+        private lateinit var downloadCache: SimpleCache
         private val downloadManagerLock = Any()
         private val databaseProviderLock = Any()
+        private val downloadCacheLock = Any()
+
+        fun getDownloadCache(context: Context): Cache {
+            synchronized(downloadCacheLock) {
+                if (::downloadCache.isInitialized) {
+                    return downloadCache
+                }
+                val downloadContentDirectory =
+                    File(getDownloadDirectory(context.applicationContext), "downloads")
+                downloadCache =
+                    SimpleCache(downloadContentDirectory, NoOpCacheEvictor(), databaseProvider)
+                return downloadCache
+            }
+        }
+
+        fun sendRemoveDownload(context: Context, track: Track) {
+            val userDataManager = UserDataManager(context)
+            val url = userDataManager.getCompleteAddress() + track.contentUrl
+            Timber.d("Removing url = $url")
+            Timber.d("Downloaded = " + track.isDownloaded(context))
+
+            val downloadIntent: Intent =
+                buildRemoveDownloadIntent(
+                    context,
+                    MyDownloadService::class.java,
+                    track.id,
+                    false
+                )
+            context.startService(downloadIntent)
+            Timber.d("Downloaded = " + track.isDownloaded(context))
+
+        }
+
+        fun sendAddDownload(context: Context, track: Track) {
+            val userDataManager = UserDataManager(context)
+            val url = userDataManager.getCompleteAddress() + track.contentUrl
+            Timber.d("Downloading url = $url")
+            Timber.d("Downloaded = " + track.isDownloaded(context))
+            val downloadRequest = DownloadRequest.Builder(
+                track.id,
+                Uri.parse(url)
+            ).build()
+
+            val downloadIntent: Intent =
+                buildAddDownloadIntent(
+                    context,
+                    MyDownloadService::class.java,
+                    downloadRequest,
+                    false
+                )
+            context.startService(downloadIntent)
+        }
 
         fun getDownloadManager(context: Context): DownloadManager {
             synchronized(downloadManagerLock) {
@@ -81,8 +139,7 @@ class MyDownloadService : DownloadService(
                 }
 
                 databaseProvider = getDatabaseProvider(context.applicationContext)
-                val downloadContentDirectory = File(getDownloadDirectory(context.applicationContext), "downloads")
-                val downloadCache = SimpleCache(downloadContentDirectory, NoOpCacheEvictor(), databaseProvider)
+                val downloadCache = getDownloadCache(context)
 
                 val dataSourceFactory = DefaultHttpDataSource.Factory()
                 val headers = hashMapOf<String, String>()
@@ -157,7 +214,10 @@ class MyDownloadService : DownloadService(
                         downloadManager: DownloadManager,
                         waitingForRequirements: Boolean
                     ) {
-                        super.onWaitingForRequirementsChanged(downloadManager, waitingForRequirements)
+                        super.onWaitingForRequirementsChanged(
+                            downloadManager,
+                            waitingForRequirements
+                        )
                         Timber.d("onWaitingForRequirementsChanged")
                     }
                 })

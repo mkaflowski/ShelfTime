@@ -35,6 +35,9 @@ data class LibraryItem(
     val userMediaProgressId: String? = null,
     val progressLastUpdate: Long = 0
 ) {
-    val title: String
+    var title: String
         get() = media.metadata.title
+        set(value) {
+            media.metadata.title = value
+        }
 }

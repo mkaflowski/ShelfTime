@@ -11,9 +11,16 @@ interface LibraryItemDao {
 
     @Transaction
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertLibraryItem(libraryItem: LibraryItem)
+    suspend fun insertLibraryItemInternal(libraryItem: LibraryItem)
 
     @Transaction
     @Delete
     suspend fun deleteLibraryItem(libraryItem: LibraryItem)
+
+    suspend fun insertLibraryItem(libraryItem: LibraryItem) {
+        val existingItem = getLibraryItemById(libraryItem.id)
+        if (existingItem == null || existingItem.userMediaProgress.lastUpdate < libraryItem.userMediaProgress.lastUpdate) {
+            insertLibraryItemInternal(libraryItem)
+        }
+    }
 }

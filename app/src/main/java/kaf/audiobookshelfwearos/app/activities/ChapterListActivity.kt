@@ -2,6 +2,7 @@ package kaf.audiobookshelfwearos.app.activities
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -18,14 +19,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Divider
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,7 +48,8 @@ import kaf.audiobookshelfwearos.app.ApiHandler
 import kaf.audiobookshelfwearos.app.MainApp
 import kaf.audiobookshelfwearos.app.data.Chapter
 import kaf.audiobookshelfwearos.app.data.LibraryItem
-import kaf.audiobookshelfwearos.app.data.Track
+import kaf.audiobookshelfwearos.app.services.MyDownloadService
+import kaf.audiobookshelfwearos.app.services.PlayerService
 import kaf.audiobookshelfwearos.app.viewmodels.ApiViewModel
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -84,17 +93,7 @@ class ChapterListActivity : ComponentActivity() {
                             .padding(0.dp)
                     ) {
                         item {
-                            Text(
-                                text = title, textAlign = TextAlign.Center, modifier = Modifier
-                                    .padding(10.dp)
-                                    .fillMaxWidth()
-                            )
-                            PlayButton(this@run)
-                            Spacer(modifier = Modifier.height(10.dp))
-                            HorizontalDivider(
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 1f),
-                                thickness = 1.dp
-                            )
+                            AudiobookInfo(this@run)
                         }
 
                         item {
@@ -107,7 +106,7 @@ class ChapterListActivity : ComponentActivity() {
                         }
 
                         itemsIndexed(media.chapters) { index, _ ->
-                            Chapter(media.chapters[index])
+                            Chapter(this@run, media.chapters[index])
                             if (index != media.chapters.size - 1) {
                                 Divider()
                             }
@@ -119,24 +118,80 @@ class ChapterListActivity : ComponentActivity() {
     }
 
     @Composable
-    fun PlayButton(item : LibraryItem) {
-        Button(
-            onClick = {
-                GlobalScope.launch {
-                    val db = (applicationContext as MainApp).database
-                    db.libraryItemDao().insertLibraryItem(item)
+    private fun AudiobookInfo(
+        libraryItem: LibraryItem,
+    ) {
+        var isDownloaded by remember {
+            mutableStateOf(
+                libraryItem.media.tracks.all { track -> track.isDownloaded(this) }
+            )
+        }
 
-                    val libraryItem = db.libraryItemDao().getLibraryItemById(item.id)
-                    Timber
-                        .tag("BookItem")
-                        .d(libraryItem?.title)
-                }
-                val intent = Intent(this@ChapterListActivity, PlayerActivity::class.java).apply {
-                    putExtra(
-                        "id",
-                        item.id
+        Column {
+            Text(
+                text = libraryItem.title, textAlign = TextAlign.Center, modifier = Modifier
+                    .padding(top = 10.dp)
+                    .fillMaxWidth()
+            )
+
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                IconButton(onClick = {
+                    if (isDownloaded) {
+                        isDownloaded = false
+                        Toast.makeText(
+                            this@ChapterListActivity,
+                            "Audiobook deleted",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        for (track in libraryItem.media.tracks) {
+                            MyDownloadService.sendRemoveDownload(
+                                this@ChapterListActivity,
+                                track
+                            )
+                        }
+                    } else {
+                        isDownloaded = true
+                        Toast.makeText(
+                            this@ChapterListActivity,
+                            "Downloading started",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        for (track in libraryItem.media.tracks) {
+                            MyDownloadService.sendAddDownload(
+                                this@ChapterListActivity,
+                                track
+                            )
+                        }
+                    }
+                }) {
+                    Icon(
+                        tint = Color.Gray,
+                        imageVector = if (isDownloaded) Icons.Filled.Delete else Icons.Filled.Download,
+                        contentDescription = if (isDownloaded) "Download" else "Delete"
                     )
                 }
+            }
+            PlayButton(libraryItem)
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 1f),
+                thickness = 1.dp
+            )
+        }
+    }
+
+    @Composable
+    fun PlayButton(item: LibraryItem) {
+        Button(
+            onClick = {
+                saveAudiobookToDB(item)
+                // Start the PlayerService
+                PlayerService.setAudiobook(this, item)
+                val intent = Intent(this@ChapterListActivity, PlayerActivity::class.java)
                 startActivity(intent)
             },
             modifier = Modifier
@@ -156,10 +211,30 @@ class ChapterListActivity : ComponentActivity() {
         }
     }
 
+    private fun saveAudiobookToDB(item: LibraryItem) {
+        GlobalScope.launch {
+            val db = (applicationContext as MainApp).database
+            db.libraryItemDao().insertLibraryItem(item)
+
+            val libraryItem = db.libraryItemDao().getLibraryItemById(item.id)
+            Timber
+                .tag("BookItem")
+                .d(libraryItem?.title)
+        }
+    }
+
     @Preview(showBackground = true)
     @Composable
-    fun DefaultPreview() {
-        PlayButton(LibraryItem())
+    fun AudiobookInfoPreview() {
+        val libraryItem = LibraryItem()
+        libraryItem.title = "Some Random Title"
+        AudiobookInfo(libraryItem)
+    }
+
+    @Preview(showBackground = true)
+    @Composable
+    fun ChapterPreview() {
+        Chapter(LibraryItem(), Chapter(0, 120.0, 260.0, "Chapter 1"))
     }
 
     @Composable
@@ -195,13 +270,15 @@ class ChapterListActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun Chapter(track: Chapter) {
+    private fun Chapter(audiobook: LibraryItem, track: Chapter) {
         Column(modifier = Modifier
             .fillMaxWidth()
             .clickable {
-                Timber
-                    .tag("BookItem")
-                    .d(track.title)
+                saveAudiobookToDB(audiobook)
+                // Start the PlayerService
+                PlayerService.setAudiobook(this, audiobook, track.start)
+                val intent = Intent(this@ChapterListActivity, PlayerActivity::class.java)
+                startActivity(intent)
             }
             .padding(16.dp)) {
             Text(
@@ -213,7 +290,7 @@ class ChapterListActivity : ComponentActivity() {
                     .padding(start = 10.dp, end = 10.dp)
                     .fillMaxWidth()
             )
-            Spacer(modifier = Modifier.height(5.dp))
+//            Spacer(modifier = Modifier.height(5.dp))
             Text(
                 text = timeToString(track.start),
                 fontSize = 10.sp,
