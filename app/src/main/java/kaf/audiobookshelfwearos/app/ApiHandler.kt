@@ -8,6 +8,7 @@ import android.widget.Toast
 import com.fasterxml.jackson.core.json.JsonReadFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import kaf.audiobookshelfwearos.BuildConfig
 import kaf.audiobookshelfwearos.app.data.Library
 import kaf.audiobookshelfwearos.app.data.LibraryItem
 import kaf.audiobookshelfwearos.app.data.User
@@ -15,19 +16,14 @@ import kaf.audiobookshelfwearos.app.data.UserMediaProgress
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.Call
-import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
-import okhttp3.Response
 import org.json.JSONObject
 import timber.log.Timber
-import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 
@@ -112,66 +108,82 @@ class ApiHandler(private val context: Context) {
         }
     }
 
-    fun updateProgress(userMediaProgress: UserMediaProgress) {
-        val job = SupervisorJob()
-        val scope = CoroutineScope(Dispatchers.IO + job)
-
-        scope.launch {
+    /**
+     * @return Progress is now up to date
+     */
+    suspend fun updateProgress(userMediaProgress: UserMediaProgress): Boolean {
+        return withContext(Dispatchers.IO) {
             try {
+                if (BuildConfig.DEBUG)
+                    Thread.sleep(1000)
+
                 val serverItem = getItem(userMediaProgress.libraryItemId)
 
                 if (serverItem.userMediaProgress.lastUpdate > userMediaProgress.lastUpdate) {
                     Timber.d("Progress on server is more recent. Not uploading")
                     userMediaProgress.toUpload = false
-                    db.userMediaProgressDao().insertUserMediaProgress(userMediaProgress)
-                    return@launch
+                    insertLibraryItemToDB(userMediaProgress)
+                    return@withContext true
                 }
 
                 Timber.d("Uploading progress...")
-                uploadProgress(userMediaProgress)
+                return@withContext uploadProgress(userMediaProgress)
             } catch (e: Exception) {
                 Timber.e(e, "Failed to update progress")
-            } finally {
-                job.cancel()
             }
+
+            return@withContext false
         }
     }
 
-    private suspend fun uploadProgress(userMediaProgress: UserMediaProgress) {
+    private suspend fun uploadProgress(userMediaProgress: UserMediaProgress): Boolean {
         val jsonBody = JSONObject().apply {
             put("currentTime", userMediaProgress.currentTime)
             put("lastUpdate", userMediaProgress.lastUpdate)
         }
 
-        val requestBody = RequestBody.create("application/json".toMediaTypeOrNull(), jsonBody.toString())
-        val url = userDataManager.getCompleteAddress() + "/api/me/progress/" + userMediaProgress.libraryItemId
+        val requestBody =
+            RequestBody.create("application/json".toMediaTypeOrNull(), jsonBody.toString())
+        val url =
+            userDataManager.getCompleteAddress() + "/api/me/progress/" + userMediaProgress.libraryItemId
         val request = Request.Builder()
             .url(url)
             .patch(requestBody)
             .addHeader("Authorization", "Bearer ${userDataManager.token}")
             .build()
 
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                Timber.w("Error: ${e.message}")
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                response.use {
-                    if (it.isSuccessful) {
-                        val responseBody = it.body?.string()
-                        userMediaProgress.toUpload = false
-                        CoroutineScope(Dispatchers.IO).launch {
-                            db.userMediaProgressDao().insertUserMediaProgress(userMediaProgress)
-                        }
-                        Timber.d("Progress uploaded. Response: $responseBody")
-                    } else {
-                        Timber.w("Error: ${response.code}")
-                    }
+        val res = client.newCall(request).execute().use { response ->
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string()
+                userMediaProgress.toUpload = false
+                CoroutineScope(Dispatchers.IO).launch {
+                    insertLibraryItemToDB(userMediaProgress)
+                    Timber.d(
+                        "toUpload after insert = " + db.userMediaProgressDao()
+                            .getUserMediaProgressById(userMediaProgress.id)?.toUpload
+                    )
+                    Timber.i(
+                        "toUpload after insert = " + db.libraryItemDao()
+                            .getLibraryItemById(userMediaProgress.libraryItemId)?.userMediaProgress?.toUpload
+                    )
                 }
+                Timber.d("Progress uploaded. Response: $responseBody")
+                return@use true
+            } else {
+                Timber.w("Error: ${response.code}")
+                return@use false
             }
-        })
+        }
+        return res
     }
+
+    private suspend fun insertLibraryItemToDB(userMediaProgress: UserMediaProgress) {
+        db.libraryItemDao().getLibraryItemById(userMediaProgress.libraryItemId)?.let {
+            it.userMediaProgress = userMediaProgress
+            db.libraryItemDao().insertLibraryItem(it) // Ensure this operation is a proper upsert
+        }
+    }
+
 
     suspend fun login(): User {
         return withContext(Dispatchers.IO) {

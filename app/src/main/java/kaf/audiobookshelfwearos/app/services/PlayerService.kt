@@ -129,8 +129,8 @@ class PlayerService : MediaSessionService() {
         audiobook.userMediaProgress.toUpload = true
         scope.launch(Dispatchers.IO) {
             db.libraryItemDao().insertLibraryItem(audiobook)
+            ApiHandler(this@PlayerService).updateProgress(audiobook.userMediaProgress)
         }
-        ApiHandler(this@PlayerService).updateProgress(audiobook.userMediaProgress)
     }
 
     private fun updateUIMetadata() {

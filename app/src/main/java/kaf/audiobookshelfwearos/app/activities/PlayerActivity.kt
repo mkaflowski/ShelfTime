@@ -94,7 +94,9 @@ class PlayerActivity : ComponentActivity() {
         }
 
         Column(
-            modifier = Modifier.fillMaxSize().padding(15.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(15.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {

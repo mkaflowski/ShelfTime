@@ -1,5 +1,6 @@
 package kaf.audiobookshelfwearos.app.viewmodels
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.util.ArrayMap
 import androidx.lifecycle.LiveData
@@ -9,10 +10,14 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 
 import kaf.audiobookshelfwearos.app.ApiHandler
+import kaf.audiobookshelfwearos.app.MainApp
 import kaf.audiobookshelfwearos.app.data.Library
 import kaf.audiobookshelfwearos.app.data.LibraryItem
 import kaf.audiobookshelfwearos.app.data.User
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
     private val _loginResult = MutableLiveData<User>()
@@ -27,8 +32,11 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
     private val _coverImages = MutableLiveData<Map<String, Bitmap>>()
     val coverImages: LiveData<Map<String, Bitmap>> get() = _coverImages
 
+    private val _isSyncing = MutableStateFlow(false)
+    val isSyncing: StateFlow<Boolean> = _isSyncing
+
     fun login() {
-        viewModelScope.launch{
+        viewModelScope.launch {
             val user = apiHandler.login()
             _loginResult.postValue(user)
         }
@@ -53,10 +61,41 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
         }
     }
 
-    fun getItem(itemId : String){
-        viewModelScope.launch{
+
+    fun getItem(context: Context, itemId: String) {
+        viewModelScope.launch {
+            val db = (context.applicationContext as MainApp).database
+            val libraryItem = db.libraryItemDao().getLibraryItemById(itemId)
+            libraryItem?.let {
+                _item.postValue(libraryItem)
+            }
+
             val item = apiHandler.getItem(itemId)
-            _item.postValue(item)
+            if (libraryItem == null || libraryItem.userMediaProgress.lastUpdate <= item.userMediaProgress.lastUpdate) {
+                Timber.d("Post server version")
+                libraryItem?.let {
+                    if (libraryItem.userMediaProgress.lastUpdate >= item.userMediaProgress.lastUpdate) {
+                        Timber.d("Local progress is newer or the same")
+                        item.userMediaProgress = libraryItem.userMediaProgress
+                    }
+                }
+                _item.postValue(item)
+            }
+        }
+    }
+
+    fun sync(item: LibraryItem) {
+        _isSyncing.value = true
+        viewModelScope.launch {
+            val debugValue = item.userMediaProgress.toUpload
+            val newItem = item.copy(userMediaProgress = item.userMediaProgress.copy(toUpload = !debugValue))
+            val updated = apiHandler.updateProgress(newItem.userMediaProgress)
+            Timber.d("updated = "+updated)
+            if (updated) {
+                Timber.w("toupload = "+newItem.userMediaProgress.toUpload)
+                _item.postValue(newItem)
+            }
+            _isSyncing.value = false
         }
     }
 

@@ -19,16 +19,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.outlined.CloudSync
+import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material3.Divider
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
@@ -79,13 +88,12 @@ class ChapterListActivity : ComponentActivity() {
         Timber.i("itemId = $itemId")
 
         setContent {
-            val item by viewModel.item.observeAsState()
+            val libraryItem by viewModel.item.observeAsState()
 
+            ManualLoadView(libraryItem, itemId)
 
-            ManualLoadView(item, itemId)
-
-            if (item?.id?.isNotEmpty() == true)
-                item?.run {
+            if (libraryItem?.id?.isNotEmpty() == true)
+                libraryItem?.run {
                     LazyColumn(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
@@ -126,6 +134,8 @@ class ChapterListActivity : ComponentActivity() {
                 libraryItem.media.tracks.all { track -> track.isDownloaded(this) }
             )
         }
+
+        val isSyncing by viewModel.isSyncing.collectAsState()
 
         Column {
             Text(
@@ -174,6 +184,16 @@ class ChapterListActivity : ComponentActivity() {
                         contentDescription = if (isDownloaded) "Download" else "Delete"
                     )
                 }
+
+                IconButton(onClick = {
+                    viewModel.sync(libraryItem)
+                }) {
+                    Icon(
+                        tint = if (!libraryItem.userMediaProgress.toUpload || isSyncing)Color.Gray else Color.Yellow,
+                        imageVector = if (isSyncing) Icons.Outlined.CloudSync else if (libraryItem.userMediaProgress.toUpload) Icons.Outlined.CloudUpload else Icons.Filled.Done,
+                        contentDescription = "Sync"
+                    )
+                }
             }
             PlayButton(libraryItem)
             Spacer(modifier = Modifier.height(10.dp))
@@ -215,11 +235,6 @@ class ChapterListActivity : ComponentActivity() {
         GlobalScope.launch {
             val db = (applicationContext as MainApp).database
             db.libraryItemDao().insertLibraryItem(item)
-
-            val libraryItem = db.libraryItemDao().getLibraryItemById(item.id)
-            Timber
-                .tag("BookItem")
-                .d(libraryItem?.title)
         }
     }
 
@@ -259,7 +274,7 @@ class ChapterListActivity : ComponentActivity() {
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     Button(onClick = {
-                        viewModel.getItem(itemId)
+                        viewModel.getItem(this@ChapterListActivity, itemId)
                     }) {
                         Text(text = "LOAD")
                     }
