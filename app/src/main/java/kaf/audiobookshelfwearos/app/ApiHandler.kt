@@ -28,21 +28,17 @@ import java.util.concurrent.TimeUnit
 
 
 class ApiHandler(private val context: Context) {
-    private var client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private var client = OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS).writeTimeout(30, TimeUnit.SECONDS).build()
 
     private var jacksonMapper =
         ObjectMapper().enable(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature())
     private val userDataManager = UserDataManager(context)
     private val db = (context.applicationContext as MainApp).database
 
-    private fun getRequest(endPoint: String) = Request.Builder()
-        .url(userDataManager.getCompleteAddress() + endPoint)
-        .addHeader("Authorization", "Bearer ${userDataManager.token}")
-        .build()
+    private fun getRequest(endPoint: String) =
+        Request.Builder().url(userDataManager.getCompleteAddress() + endPoint)
+            .addHeader("Authorization", "Bearer ${userDataManager.token}").build()
 
     suspend fun getAllLibraries(): List<Library> {
         return withContext(Dispatchers.IO) {
@@ -81,8 +77,8 @@ class ApiHandler(private val context: Context) {
                 val libraryItem = jacksonMapper.readValue<LibraryItem>(responseBody.toString())
                 val localLibraryItem = db.libraryItemDao().getLibraryItemById(id)
                 localLibraryItem?.let {
-                    if (it.userMediaProgress.lastUpdate > libraryItem.userMediaProgress.lastUpdate)
-                        libraryItem.userMediaProgress = localLibraryItem.userMediaProgress
+                    if (it.userMediaProgress.lastUpdate > libraryItem.userMediaProgress.lastUpdate) libraryItem.userMediaProgress =
+                        localLibraryItem.userMediaProgress
                 }
 
                 return@use libraryItem
@@ -114,8 +110,7 @@ class ApiHandler(private val context: Context) {
     suspend fun updateProgress(userMediaProgress: UserMediaProgress): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                if (BuildConfig.DEBUG)
-                    Thread.sleep(1000)
+                if (BuildConfig.DEBUG) Thread.sleep(1000)
 
                 val serverItem = getItem(userMediaProgress.libraryItemId)
 
@@ -146,11 +141,8 @@ class ApiHandler(private val context: Context) {
             RequestBody.create("application/json".toMediaTypeOrNull(), jsonBody.toString())
         val url =
             userDataManager.getCompleteAddress() + "/api/me/progress/" + userMediaProgress.libraryItemId
-        val request = Request.Builder()
-            .url(url)
-            .patch(requestBody)
-            .addHeader("Authorization", "Bearer ${userDataManager.token}")
-            .build()
+        val request = Request.Builder().url(url).patch(requestBody)
+            .addHeader("Authorization", "Bearer ${userDataManager.token}").build()
 
         val res = client.newCall(request).execute().use { response ->
             if (response.isSuccessful) {
@@ -158,14 +150,6 @@ class ApiHandler(private val context: Context) {
                 userMediaProgress.toUpload = false
                 CoroutineScope(Dispatchers.IO).launch {
                     insertLibraryItemToDB(userMediaProgress)
-                    Timber.d(
-                        "toUpload after insert = " + db.userMediaProgressDao()
-                            .getUserMediaProgressById(userMediaProgress.id)?.toUpload
-                    )
-                    Timber.i(
-                        "toUpload after insert = " + db.libraryItemDao()
-                            .getLibraryItemById(userMediaProgress.libraryItemId)?.userMediaProgress?.toUpload
-                    )
                 }
                 Timber.d("Progress uploaded. Response: $responseBody")
                 return@use true
@@ -195,11 +179,8 @@ class ApiHandler(private val context: Context) {
             val requestBody =
                 RequestBody.create("application/json".toMediaTypeOrNull(), jsonBody.toString())
 
-            val request = Request.Builder()
-                .url(userDataManager.getCompleteAddress() + "/login")
-                .post(requestBody)
-                .addHeader("Content-Type", "application/json")
-                .build()
+            val request = Request.Builder().url(userDataManager.getCompleteAddress() + "/login")
+                .post(requestBody).addHeader("Content-Type", "application/json").build()
 
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) showToast(response.code.toString())
@@ -212,13 +193,10 @@ class ApiHandler(private val context: Context) {
     }
 
     private fun showToast(text: String) {
-        if (context is Activity)
-            context.runOnUiThread {
-                Toast.makeText(
-                    context,
-                    text,
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
+        if (context is Activity) context.runOnUiThread {
+            Toast.makeText(
+                context, text, Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 }
