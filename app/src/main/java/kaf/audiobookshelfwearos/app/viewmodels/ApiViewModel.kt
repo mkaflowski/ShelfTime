@@ -8,12 +8,16 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import kaf.audiobookshelfwearos.BuildConfig
 
 import kaf.audiobookshelfwearos.app.ApiHandler
 import kaf.audiobookshelfwearos.app.MainApp
 import kaf.audiobookshelfwearos.app.data.Library
 import kaf.audiobookshelfwearos.app.data.LibraryItem
 import kaf.audiobookshelfwearos.app.data.User
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -34,6 +38,9 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
 
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading
 
     fun login() {
         viewModelScope.launch {
@@ -63,10 +70,12 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
 
 
     fun getItem(context: Context, itemId: String) {
+        _isLoading.value = true
         viewModelScope.launch {
             val db = (context.applicationContext as MainApp).database
             val libraryItem = db.libraryItemDao().getLibraryItemById(itemId)
             libraryItem?.let {
+                _isLoading.value = false
                 _item.postValue(libraryItem)
             }
 
@@ -79,6 +88,7 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
                         item.userMediaProgress = libraryItem.userMediaProgress
                     }
                 }
+                _isLoading.value = false
                 _item.postValue(item)
             }
         }
@@ -88,42 +98,45 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
         _isSyncing.value = true
         viewModelScope.launch {
             val debugValue = item.userMediaProgress.toUpload
-            val newItem = item.copy(userMediaProgress = item.userMediaProgress.copy(toUpload = !debugValue))
+            val newItem =
+                item.copy(userMediaProgress = item.userMediaProgress.copy(toUpload = !debugValue))
             val updated = apiHandler.updateProgress(newItem.userMediaProgress)
-            Timber.d("updated = "+updated)
+            Timber.d("updated = " + updated)
             if (updated) {
-                Timber.w("toupload = "+newItem.userMediaProgress.toUpload)
+                Timber.w("toupload = " + newItem.userMediaProgress.toUpload)
                 _item.postValue(newItem)
             }
             _isSyncing.value = false
         }
     }
 
-    fun getLibraries() {
+    fun getLibraries(includeLocalProgress : Boolean = true) {
+        _isLoading.value = true
         viewModelScope.launch {
-            val libraries = apiHandler.getAllLibraries()
-            val totalLibraries = libraries.size
-            var completedLibraries = 0
-
-            for (library in libraries) {
-                viewModelScope.launch {
-                    val libraryItems = apiHandler.getLibraryItems(library.id)
-                    library.libraryItems.addAll(libraryItems)
-                    completedLibraries++
-
-                    if (completedLibraries == totalLibraries) {
-                        _libraries.postValue(libraries)
-                    }
-                }
+            val res = loadLibraries()
+            if(includeLocalProgress){
+//                val db = (context.applicationContext as MainApp).database
+//                iteruj elementy
+//                val libraryItem = db.libraryItemDao().getLibraryItemById(itemId)
             }
-
-            // If there are no libraries, post the empty list immediately
-            if (totalLibraries == 0) {
-                _libraries.postValue(libraries)
-            }
+            _isLoading.value = false
+            _libraries.postValue(res)
         }
     }
 
+    private suspend fun loadLibraries() = coroutineScope {
+        val libraries = apiHandler.getAllLibraries()
+
+        val deferredLibraries = libraries.map { library ->
+            async {
+                val libraryItems = apiHandler.getLibraryItems(library.id)
+                library.libraryItems.addAll(libraryItems)
+                library
+            }
+        }
+
+        deferredLibraries.awaitAll()
+    }
 
     class ApiViewModelFactory(private val apiHandler: ApiHandler) :
         ViewModelProvider.NewInstanceFactory() {

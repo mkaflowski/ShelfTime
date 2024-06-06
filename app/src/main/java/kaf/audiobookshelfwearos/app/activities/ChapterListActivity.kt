@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -52,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.ButtonDefaults
+import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.Text
 import kaf.audiobookshelfwearos.app.ApiHandler
 import kaf.audiobookshelfwearos.app.MainApp
@@ -66,6 +68,8 @@ import timber.log.Timber
 import kotlin.math.floor
 
 class ChapterListActivity : ComponentActivity() {
+    var itemId: String = ""
+
     private val viewModel: ApiViewModel by viewModels {
         ApiViewModel.ApiViewModelFactory(
             ApiHandler(
@@ -83,7 +87,7 @@ class ChapterListActivity : ComponentActivity() {
             Timber.d(user.token)
         }
 
-        val itemId = intent.getStringExtra("id") ?: ""
+        itemId = intent.getStringExtra("id") ?: ""
 
         Timber.i("itemId = $itemId")
 
@@ -189,7 +193,7 @@ class ChapterListActivity : ComponentActivity() {
                     viewModel.sync(libraryItem)
                 }) {
                     Icon(
-                        tint = if (!libraryItem.userMediaProgress.toUpload || isSyncing)Color.Gray else Color.Yellow,
+                        tint = if (!libraryItem.userMediaProgress.toUpload || isSyncing) Color.Gray else Color.Yellow,
                         imageVector = if (isSyncing) Icons.Outlined.CloudSync else if (libraryItem.userMediaProgress.toUpload) Icons.Outlined.CloudUpload else Icons.Filled.Done,
                         contentDescription = "Sync"
                     )
@@ -202,6 +206,11 @@ class ChapterListActivity : ComponentActivity() {
                 thickness = 1.dp
             )
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.getItem(this@ChapterListActivity, itemId)
     }
 
     @Composable
@@ -254,8 +263,27 @@ class ChapterListActivity : ComponentActivity() {
 
     @Composable
     private fun ManualLoadView(item: LibraryItem?, itemId: String) {
-        if (item?.id!!.isEmpty()) {
+        val isLoading by viewModel.isLoading.collectAsState()
 
+        if (isLoading) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center, modifier = Modifier
+                    .fillMaxSize()
+            ) {
+                CircularProgressIndicator(
+                    startAngle = 0f,
+                    modifier = Modifier.width(80.dp).height(80.dp),
+                    indicatorColor = androidx.wear.compose.material.MaterialTheme.colors.secondary,
+                    trackColor = androidx.wear.compose.material.MaterialTheme.colors.onBackground.copy(
+                        alpha = 0.1f
+                    ),
+                    strokeWidth = 8.dp
+                )
+            }
+        }
+
+        if (item?.id!!.isEmpty() && !isLoading) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -309,7 +337,8 @@ class ChapterListActivity : ComponentActivity() {
             Text(
                 text = timeToString(track.start),
                 fontSize = 10.sp,
-                color = Color.Green,
+                color = if (track.start > audiobook.userMediaProgress.currentTime) Color.Green else
+                    if (track.end > audiobook.userMediaProgress.currentTime) Color.Cyan else Color.Gray,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .padding(start = 10.dp, end = 10.dp)
