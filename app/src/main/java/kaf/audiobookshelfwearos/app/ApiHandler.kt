@@ -166,7 +166,7 @@ class ApiHandler(private val context: Context) {
     private suspend fun insertLibraryItemToDB(userMediaProgress: UserMediaProgress) {
         db.libraryItemDao().getLibraryItemById(userMediaProgress.libraryItemId)?.let {
             it.userMediaProgress = userMediaProgress
-            db.libraryItemDao().insertLibraryItem(it) // Ensure this operation is a proper upsert
+            db.libraryItemDao().insertLibraryItem(it)
         }
     }
 

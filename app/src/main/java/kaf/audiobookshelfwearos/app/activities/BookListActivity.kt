@@ -57,15 +57,15 @@ class BookListActivity : ComponentActivity() {
             Timber.d(user.token)
         }
 
-        viewModel.getLibraries()
+        viewModel.getLibraries(this, true)
 
         setContent {
             val libraries by viewModel.libraries.observeAsState()
 
             ManualLoadView(libraries)
-            for (library in libraries!!) {
-                Library(library)
-            }
+
+            Libraries(libraries)
+
         }
     }
 
@@ -81,7 +81,9 @@ class BookListActivity : ComponentActivity() {
             ) {
                 CircularProgressIndicator(
                     startAngle = 0f,
-                    modifier = Modifier.width(80.dp).height(80.dp),
+                    modifier = Modifier
+                        .width(80.dp)
+                        .height(80.dp),
                     indicatorColor = MaterialTheme.colors.secondary,
                     trackColor = MaterialTheme.colors.onBackground.copy(
                         alpha = 0.1f
@@ -110,7 +112,7 @@ class BookListActivity : ComponentActivity() {
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     Button(onClick = {
-                        viewModel.getLibraries()
+                        viewModel.getLibraries(this@BookListActivity, true)
                     }) {
                         Text(text = "LOAD")
                     }
@@ -121,14 +123,19 @@ class BookListActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun Library(library: Library) {
+    private fun Libraries(libraries: List<Library>?) {
         LazyColumn(
             Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            itemsIndexed(library.libraryItems) { index, d ->
-                BookItem(library.libraryItems[index])
-                if (index != library.libraryItems.size - 1) {
-                    Divider()
+            libraries?.let {
+                for ((libIndex, library) in libraries.withIndex()) {
+                    itemsIndexed(library.libraryItems) { index, d ->
+                        BookItem(library.libraryItems[index])
+                        Timber.d(library.libraryItems[index].title + " --- " + libIndex)
+                        if (index != library.libraryItems.size - 1 || libIndex != libraries.size - 1) {
+                            Divider()
+                        }
+                    }
                 }
             }
         }

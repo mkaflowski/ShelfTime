@@ -127,6 +127,7 @@ class PlayerService : MediaSessionService() {
         audiobook.userMediaProgress.lastUpdate = System.currentTimeMillis()
         audiobook.userMediaProgress.currentTime = getCurrentTotalPositionInS()
         audiobook.userMediaProgress.toUpload = true
+        audiobook.userMediaProgress.libraryItemId = audiobook.id
         scope.launch(Dispatchers.IO) {
             db.libraryItemDao().insertLibraryItem(audiobook)
             ApiHandler(this@PlayerService).updateProgress(audiobook.userMediaProgress)

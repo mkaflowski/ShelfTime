@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 @Entity(tableName = "user_media_progress")
 data class UserMediaProgress(
     @PrimaryKey val id: String = "",
-    val libraryItemId: String = "",
+    var libraryItemId: String = "",
     val episodeId: String? = null,
     val duration: Double = 0.0,
     val progress: Double = 0.0,

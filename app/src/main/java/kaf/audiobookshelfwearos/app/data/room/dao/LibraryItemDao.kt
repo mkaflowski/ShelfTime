@@ -10,6 +10,10 @@ interface LibraryItemDao {
     suspend fun getLibraryItemById(id: String): LibraryItem?
 
     @Transaction
+    @Query("SELECT * FROM library_item WHERE progress_isFinished = false ORDER BY progress_lastUpdate DESC")
+    suspend fun getAllLibraryItems(): List<LibraryItem>
+
+    @Transaction
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertLibraryItemInternal(libraryItem: LibraryItem)
 

@@ -2,13 +2,11 @@ package kaf.audiobookshelfwearos.app.viewmodels
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.util.ArrayMap
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import kaf.audiobookshelfwearos.BuildConfig
 
 import kaf.audiobookshelfwearos.app.ApiHandler
 import kaf.audiobookshelfwearos.app.MainApp
@@ -97,30 +95,37 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
     fun sync(item: LibraryItem) {
         _isSyncing.value = true
         viewModelScope.launch {
-            val debugValue = item.userMediaProgress.toUpload
             val newItem =
-                item.copy(userMediaProgress = item.userMediaProgress.copy(toUpload = !debugValue))
+                item.copy(userMediaProgress = item.userMediaProgress.copy(toUpload = !item.userMediaProgress.toUpload))
             val updated = apiHandler.updateProgress(newItem.userMediaProgress)
-            Timber.d("updated = " + updated)
             if (updated) {
-                Timber.w("toupload = " + newItem.userMediaProgress.toUpload)
                 _item.postValue(newItem)
             }
             _isSyncing.value = false
         }
     }
 
-    fun getLibraries(includeLocalProgress : Boolean = true) {
+    fun getLibraries(context: Context? = null, includeLocalProgress: Boolean = true) {
         _isLoading.value = true
         viewModelScope.launch {
+            var localItems = listOf<LibraryItem>()
+            var allLibraries = arrayListOf<Library>()
+            if (includeLocalProgress && context != null) {
+                val db = (context.applicationContext as MainApp).database
+                localItems = db.libraryItemDao().getAllLibraryItems()
+                val localLibrary = Library(libraryItems = localItems.toCollection(ArrayList()))
+                allLibraries.add(localLibrary)
+                _libraries.postValue(listOf(localLibrary))
+                _isLoading.value = false
+            }
+
             val res = loadLibraries()
-            if(includeLocalProgress){
-//                val db = (context.applicationContext as MainApp).database
-//                iteruj elementy
-//                val libraryItem = db.libraryItemDao().getLibraryItemById(itemId)
+            for (library in res) {
+                library.libraryItems.removeAll { item2 -> localItems.any { item1 -> item1.id == item2.id } }
+                allLibraries.add(library)
             }
             _isLoading.value = false
-            _libraries.postValue(res)
+            _libraries.postValue(allLibraries)
         }
     }
 
