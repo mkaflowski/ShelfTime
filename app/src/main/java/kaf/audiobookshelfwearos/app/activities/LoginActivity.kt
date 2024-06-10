@@ -10,10 +10,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.viewModels
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import kaf.audiobookshelfwearos.R
-import kaf.audiobookshelfwearos.databinding.ActivityLoginBinding
 import kaf.audiobookshelfwearos.app.ApiHandler
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import kaf.audiobookshelfwearos.app.viewmodels.ApiViewModel
+import kaf.audiobookshelfwearos.databinding.ActivityLoginBinding
 import timber.log.Timber
 import kotlin.reflect.KMutableProperty1
 
@@ -89,6 +89,7 @@ class LoginActivity : ComponentActivity() {
         }
 
         loginButton.setOnClickListener {
+            Timber.d("Login clicked")
             viewModel.login()
         }
     }

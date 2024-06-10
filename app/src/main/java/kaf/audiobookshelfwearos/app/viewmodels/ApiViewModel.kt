@@ -43,7 +43,8 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
     fun login() {
         viewModelScope.launch {
             val user = apiHandler.login()
-            _loginResult.postValue(user)
+            if (user.id.isNotEmpty())
+                _loginResult.postValue(user)
         }
     }
 

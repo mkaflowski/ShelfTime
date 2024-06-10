@@ -100,104 +100,127 @@ class PlayerActivity : ComponentActivity() {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = chapterTitle, color = Color.White, textAlign = TextAlign.Center, fontSize = 12.sp, maxLines = 2)
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(), contentAlignment = Alignment.Center
             ) {
-                IconButton(onClick = {
-                    val intent = Intent(this@PlayerActivity, PlayerService::class.java)
-                    intent.action = "ACTION_REWIND"
-                    startService(intent)
-                }) {
-                    Icon(
-                        tint = Color.White,
-                        imageVector = Icons.Filled.FastRewind,
-                        contentDescription = "Rewind"
-                    )
-                }
-                Box(
-                    contentAlignment = Alignment.Center
+                Text(
+                    text = chapterTitle,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    fontSize = 12.sp,
+                    maxLines = 2,
+                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 10.dp)
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(), contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    var progressBar = 0f
-                    if (duration > 0)
-                        progressBar = currentPosition.toFloat() / duration
-                    Timber.d("duration $duration")
-                    Timber.d("currentPosition $currentPosition")
-                    Timber.d("progressBar $progressBar")
-                    CircularProgressIndicator(
-                        progress = progressBar,
-                        startAngle = 0f,
-                        indicatorColor = MaterialTheme.colors.secondary,
-                        trackColor = MaterialTheme.colors.onBackground.copy(alpha = 0.1f),
-                        strokeWidth = 3.dp
-                    )
                     IconButton(onClick = {
                         val intent = Intent(this@PlayerActivity, PlayerService::class.java)
-                        intent.action = "ACTION_PLAY_PAUSE"
+                        intent.action = "ACTION_REWIND"
                         startService(intent)
-                        isPlaying = !isPlaying
                     }) {
                         Icon(
                             tint = Color.White,
-                            imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = if (isPlaying) "Pause" else "Play"
+                            imageVector = Icons.Filled.FastRewind,
+                            contentDescription = "Rewind"
+                        )
+                    }
+                    Box(
+                        contentAlignment = Alignment.Center
+                    ) {
+                        var progressBar = 0f
+                        if (duration > 0)
+                            progressBar = currentPosition.toFloat() / duration
+                        Timber.d("duration $duration")
+                        Timber.d("currentPosition $currentPosition")
+                        Timber.d("progressBar $progressBar")
+                        CircularProgressIndicator(
+                            progress = progressBar,
+                            startAngle = 0f,
+                            indicatorColor = MaterialTheme.colors.secondary,
+                            trackColor = MaterialTheme.colors.onBackground.copy(alpha = 0.1f),
+                            strokeWidth = 3.dp
+                        )
+                        IconButton(onClick = {
+                            val intent = Intent(this@PlayerActivity, PlayerService::class.java)
+                            intent.action = "ACTION_PLAY_PAUSE"
+                            startService(intent)
+                            isPlaying = !isPlaying
+                        }) {
+                            Icon(
+                                tint = Color.White,
+                                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                contentDescription = if (isPlaying) "Pause" else "Play"
+                            )
+                        }
+                    }
+
+                    IconButton(onClick = {
+                        val intent = Intent(this@PlayerActivity, PlayerService::class.java)
+                        intent.action = "ACTION_FAST_FORWARD"
+                        startService(intent)
+                    }) {
+                        Icon(
+                            tint = Color.White,
+                            imageVector = Icons.Filled.FastForward,
+                            contentDescription = "Fast Forward"
                         )
                     }
                 }
-
-                IconButton(onClick = {
-                    val intent = Intent(this@PlayerActivity, PlayerService::class.java)
-                    intent.action = "ACTION_FAST_FORWARD"
-                    startService(intent)
-                }) {
-                    Icon(
-                        tint = Color.White,
-                        imageVector = Icons.Filled.FastForward,
-                        contentDescription = "Fast Forward"
-                    )
-                }
             }
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "${timeToString(currentPosition / 1000)} / ${timeToString(duration / 1000)}",
-                color = Color.LightGray,
-                fontSize = 12.sp
-            )
+            Box(
+                modifier = Modifier
+                    .weight(1f).padding(bottom = 10.dp)
+                    .fillMaxWidth(), contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "${timeToString(currentPosition / 1000)} / ${timeToString(duration / 1000)}",
+                    color = Color.LightGray,
+                    fontSize = 12.sp
+                )
+            }
         }
 
-        if(!isPreview)
-        DisposableEffect(Unit) {
-            val trackEndedReceiver = object : BroadcastReceiver() {
-                override fun onReceive(context: Context?, intent: Intent?) {
-                    when (intent?.action) {
-                        "$packageName.ACTION_PLAYING" -> {
-                            isPlaying = true // Update the UI state
-                        }
+        if (!isPreview)
+            DisposableEffect(Unit) {
+                val trackEndedReceiver = object : BroadcastReceiver() {
+                    override fun onReceive(context: Context?, intent: Intent?) {
+                        when (intent?.action) {
+                            "$packageName.ACTION_PLAYING" -> {
+                                isPlaying = true // Update the UI state
+                            }
 
-                        "$packageName.ACTION_PAUSED" -> {
-                            isPlaying = false // Update the UI state
-                        }
+                            "$packageName.ACTION_PAUSED" -> {
+                                isPlaying = false // Update the UI state
+                            }
 
-                        "$packageName.ACTION_UPDATE_METADATA" -> {
-                            chapterTitle = intent.getStringExtra("CHAPTER_TITLE") ?: ""
+                            "$packageName.ACTION_UPDATE_METADATA" -> {
+                                chapterTitle = intent.getStringExtra("CHAPTER_TITLE") ?: ""
+                            }
                         }
                     }
                 }
-            }
-            val filter = IntentFilter().apply {
-                addAction("$packageName.ACTION_PLAYING")
-                addAction("$packageName.ACTION_PAUSED")
-                addAction("$packageName.ACTION_UPDATE_METADATA")
-            }
-            this@PlayerActivity.registerReceiver(trackEndedReceiver, filter)
+                val filter = IntentFilter().apply {
+                    addAction("$packageName.ACTION_PLAYING")
+                    addAction("$packageName.ACTION_PAUSED")
+                    addAction("$packageName.ACTION_UPDATE_METADATA")
+                }
+                this@PlayerActivity.registerReceiver(trackEndedReceiver, filter)
 
-            onDispose {
-                this@PlayerActivity.unregisterReceiver(trackEndedReceiver)
+                onDispose {
+                    this@PlayerActivity.unregisterReceiver(trackEndedReceiver)
+                }
             }
-        }
 
     }
 

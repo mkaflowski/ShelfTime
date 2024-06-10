@@ -185,7 +185,10 @@ class ApiHandler(private val context: Context) {
                 .post(requestBody).addHeader("Content-Type", "application/json").build()
 
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) showToast(response.code.toString())
+                if (!response.isSuccessful) {
+                    showToast(response.code.toString())
+                    return@use User()
+                }
                 val responseBody = response.body?.string()
                 val jsonResponse = responseBody?.let { JSONObject(it) }
                 val user = jsonResponse?.getJSONObject("user")

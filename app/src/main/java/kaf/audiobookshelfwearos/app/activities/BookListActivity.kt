@@ -24,13 +24,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumnDefaults
+import androidx.wear.compose.foundation.lazy.itemsIndexed
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.PositionIndicator
+import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
+import androidx.wear.compose.material.Vignette
+import androidx.wear.compose.material.VignettePosition
 import coil.compose.AsyncImage
 import kaf.audiobookshelfwearos.R
 import kaf.audiobookshelfwearos.app.ApiHandler
@@ -63,7 +72,6 @@ class BookListActivity : ComponentActivity() {
             val libraries by viewModel.libraries.observeAsState()
 
             ManualLoadView(libraries)
-
             Libraries(libraries)
 
         }
@@ -124,16 +132,38 @@ class BookListActivity : ComponentActivity() {
 
     @Composable
     private fun Libraries(libraries: List<Library>?) {
-        LazyColumn(
-            Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally
+        val scalingLazyListState = rememberScalingLazyListState(0)
+
+        Scaffold(
+            modifier = Modifier.onGloballyPositioned {},
+            positionIndicator = {
+                PositionIndicator(scalingLazyListState = scalingLazyListState)
+            },
+            vignette = {
+                Vignette(vignettePosition = VignettePosition.TopAndBottom)
+            }
         ) {
-            libraries?.let {
-                for ((libIndex, library) in libraries.withIndex()) {
-                    itemsIndexed(library.libraryItems) { index, d ->
-                        BookItem(library.libraryItems[index])
-                        Timber.d(library.libraryItems[index].title + " --- " + libIndex)
-                        if (index != library.libraryItems.size - 1 || libIndex != libraries.size - 1) {
-                            Divider()
+            ScalingLazyColumn(
+                state = scalingLazyListState,
+                scalingParams = ScalingLazyColumnDefaults.scalingParams(
+                    edgeScale = 0.5f,
+                    minTransitionArea = 0.5f,
+                    maxTransitionArea = 0.5f
+                ),
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                libraries?.let {
+                    for ((libIndex, library) in libraries.withIndex()) {
+                        itemsIndexed(library.libraryItems) { index, item ->
+                            Column {
+                                BookItem(item)
+                                val showDivider =
+                                    (index != library.libraryItems.size - 1 || libIndex != libraries.size - 1)
+                                if (showDivider) {
+                                    Divider()
+                                }
+                            }
                         }
                     }
                 }

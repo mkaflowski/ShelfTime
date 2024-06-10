@@ -17,44 +17,47 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CloudSync
-import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
-import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.outlined.CloudSync
 import androidx.compose.material.icons.outlined.CloudUpload
-import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material3.Divider
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumnDefaults
+import androidx.wear.compose.foundation.lazy.itemsIndexed
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.ButtonDefaults
 import androidx.wear.compose.material.CircularProgressIndicator
+import androidx.wear.compose.material.PositionIndicator
+import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
+import androidx.wear.compose.material.Vignette
+import androidx.wear.compose.material.VignettePosition
 import kaf.audiobookshelfwearos.app.ApiHandler
 import kaf.audiobookshelfwearos.app.MainApp
 import kaf.audiobookshelfwearos.app.data.Chapter
@@ -95,35 +98,52 @@ class ChapterListActivity : ComponentActivity() {
             val libraryItem by viewModel.item.observeAsState()
 
             ManualLoadView(libraryItem, itemId)
+            val scalingLazyListState = rememberScalingLazyListState(0)
 
             if (libraryItem?.id?.isNotEmpty() == true)
                 libraryItem?.run {
-                    LazyColumn(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(0.dp)
+                    Scaffold(
+                        modifier = Modifier.onGloballyPositioned {},
+                        positionIndicator = {
+                            PositionIndicator(scalingLazyListState = scalingLazyListState)
+                        },
+                        vignette = {
+                            Vignette(vignettePosition = VignettePosition.TopAndBottom)
+                        }
                     ) {
-                        item {
-                            AudiobookInfo(this@run)
-                        }
-
-                        item {
-                            Text(
-                                textAlign = TextAlign.Center,
-                                text = "Chapters:", modifier = Modifier
-                                    .padding(10.dp)
-                                    .fillMaxWidth()
-                            )
-                        }
-
-                        itemsIndexed(media.chapters) { index, _ ->
-                            Chapter(this@run, media.chapters[index])
-                            if (index != media.chapters.size - 1) {
-                                Divider()
+                        ScalingLazyColumn(
+                            state = scalingLazyListState,
+                            scalingParams = ScalingLazyColumnDefaults.scalingParams(
+                                edgeScale = 0.5f,
+                                minTransitionArea = 0.5f,
+                                maxTransitionArea = 0.5f
+                            ),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(0.dp)
+                        ) {
+                            item {
+                                AudiobookInfo(this@run)
                             }
-                        }
 
+                            item {
+                                Text(
+                                    textAlign = TextAlign.Center,
+                                    text = "Chapters:", modifier = Modifier
+                                        .padding(10.dp)
+                                        .fillMaxWidth()
+                                )
+                            }
+
+                            itemsIndexed(media.chapters) { index, _ ->
+                                Chapter(this@run, media.chapters[index])
+                                if (index != media.chapters.size - 1) {
+                                    Divider()
+                                }
+                            }
+
+                        }
                     }
                 }
         }
@@ -142,9 +162,13 @@ class ChapterListActivity : ComponentActivity() {
         val isSyncing by viewModel.isSyncing.collectAsState()
 
         Column {
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = libraryItem.title, textAlign = TextAlign.Center, modifier = Modifier
-                    .padding(top = 10.dp)
+                text = libraryItem.title,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .padding(top = 15.dp, start = 30.dp, end = 30.dp)
                     .fillMaxWidth()
             )
 
@@ -273,7 +297,9 @@ class ChapterListActivity : ComponentActivity() {
             ) {
                 CircularProgressIndicator(
                     startAngle = 0f,
-                    modifier = Modifier.width(80.dp).height(80.dp),
+                    modifier = Modifier
+                        .width(80.dp)
+                        .height(80.dp),
                     indicatorColor = androidx.wear.compose.material.MaterialTheme.colors.secondary,
                     trackColor = androidx.wear.compose.material.MaterialTheme.colors.onBackground.copy(
                         alpha = 0.1f
