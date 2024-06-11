@@ -41,10 +41,12 @@
 
         <activity
             android:name=".app.activities.BookListActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:launchMode="singleTop"/>
         <activity
             android:name=".app.activities.ChapterListActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:launchMode="singleTop"/>
         <activity
             android:name=".app.activities.PlayerActivity"
             android:exported="false" />

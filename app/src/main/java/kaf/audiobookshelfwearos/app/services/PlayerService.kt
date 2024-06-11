@@ -73,6 +73,10 @@ class PlayerService : MediaSessionService() {
         exoPlayer = ExoPlayer.Builder(this).build()
 
         exoPlayer.addListener(object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                super.onMediaItemTransition(mediaItem, reason)
+                updateUIMetadata()
+            }
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
                 super.onMediaMetadataChanged(mediaMetadata)
                 Timber.d("mediaMetadata - " + mediaMetadata.trackNumber)
