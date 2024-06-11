@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Downloading
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.CloudSync
 import androidx.compose.material.icons.outlined.CloudUpload
@@ -31,6 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -66,6 +68,7 @@ import kaf.audiobookshelfwearos.app.services.MyDownloadService
 import kaf.audiobookshelfwearos.app.services.PlayerService
 import kaf.audiobookshelfwearos.app.viewmodels.ApiViewModel
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import kotlin.math.floor
@@ -159,6 +162,24 @@ class ChapterListActivity : ComponentActivity() {
             )
         }
 
+        var isDownloading by remember {
+            mutableStateOf(
+                libraryItem.media.tracks.any { track -> track.isDownloading(this) }
+            )
+        }
+
+
+        LaunchedEffect(isDownloading) {
+            while (isDownloading) {
+                delay(1000L)
+                isDownloading = libraryItem.media.tracks.any { track ->
+                    track.isDownloading(this@ChapterListActivity)
+                }
+            }
+            isDownloaded =
+                libraryItem.media.tracks.all { track -> track.isDownloaded(this@ChapterListActivity) }
+        }
+
         val isSyncing by viewModel.isSyncing.collectAsState()
 
         Column {
@@ -192,23 +213,24 @@ class ChapterListActivity : ComponentActivity() {
                             )
                         }
                     } else {
-                        isDownloaded = true
                         Toast.makeText(
                             this@ChapterListActivity,
                             "Downloading started",
                             Toast.LENGTH_SHORT
                         ).show()
                         for (track in libraryItem.media.tracks) {
+                            saveAudiobookToDB(libraryItem)
                             MyDownloadService.sendAddDownload(
                                 this@ChapterListActivity,
                                 track
                             )
                         }
+                        isDownloading = true
                     }
                 }) {
                     Icon(
                         tint = Color.Gray,
-                        imageVector = if (isDownloaded) Icons.Filled.Delete else Icons.Filled.Download,
+                        imageVector = if (isDownloading) Icons.Filled.Downloading else (if (isDownloaded) Icons.Filled.Delete else Icons.Filled.Download),
                         contentDescription = if (isDownloaded) "Download" else "Delete"
                     )
                 }

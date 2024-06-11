@@ -14,10 +14,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FastForward
@@ -57,6 +55,7 @@ class PlayerActivity : ComponentActivity() {
             val binder = service as PlayerService.LocalBinder
             playerService = binder.getService()
             isBound = true
+            playerService!!.updateUIMetadata()
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
@@ -87,7 +86,10 @@ class PlayerActivity : ComponentActivity() {
             while (true) {
                 if (isBound) {
                     currentPosition = playerService?.getCurrentPosition() ?: 0L
-                    duration = playerService?.getDuration() ?: 0L
+                    playerService?.getDuration()?.let {
+                        if (it > 0)
+                            duration = it
+                    }
                 }
                 delay(1000)
             }
@@ -180,7 +182,8 @@ class PlayerActivity : ComponentActivity() {
             }
             Box(
                 modifier = Modifier
-                    .weight(1f).padding(bottom = 10.dp)
+                    .weight(1f)
+                    .padding(bottom = 10.dp)
                     .fillMaxWidth(), contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -193,7 +196,7 @@ class PlayerActivity : ComponentActivity() {
 
         if (!isPreview)
             DisposableEffect(Unit) {
-                val trackEndedReceiver = object : BroadcastReceiver() {
+                val playerReceiver = object : BroadcastReceiver() {
                     override fun onReceive(context: Context?, intent: Intent?) {
                         when (intent?.action) {
                             "$packageName.ACTION_PLAYING" -> {
@@ -205,7 +208,10 @@ class PlayerActivity : ComponentActivity() {
                             }
 
                             "$packageName.ACTION_UPDATE_METADATA" -> {
-                                chapterTitle = intent.getStringExtra("CHAPTER_TITLE") ?: ""
+                                intent.getStringExtra("CHAPTER_TITLE")?.let {
+                                    chapterTitle = it
+                                    Timber.d("chapterTitle = " + chapterTitle)
+                                }
                             }
                         }
                     }
@@ -215,10 +221,11 @@ class PlayerActivity : ComponentActivity() {
                     addAction("$packageName.ACTION_PAUSED")
                     addAction("$packageName.ACTION_UPDATE_METADATA")
                 }
-                this@PlayerActivity.registerReceiver(trackEndedReceiver, filter)
+                this@PlayerActivity.registerReceiver(playerReceiver, filter)
+                playerService?.updateUIMetadata()
 
                 onDispose {
-                    this@PlayerActivity.unregisterReceiver(trackEndedReceiver)
+                    this@PlayerActivity.unregisterReceiver(playerReceiver)
                 }
             }
 

@@ -134,7 +134,7 @@ class PlayerService : MediaSessionService() {
         }
     }
 
-    private fun updateUIMetadata() {
+    fun updateUIMetadata() {
         val timeInS = getCurrentTotalPositionInS()
 
         var currentChapter = Chapter()

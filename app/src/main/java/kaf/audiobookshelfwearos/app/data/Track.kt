@@ -28,4 +28,11 @@ data class Track(
         val download: Download? = downloadManager.downloadIndex.getDownload(contentUrl)
         return download != null && download.state == Download.STATE_COMPLETED
     }
+
+    @OptIn(UnstableApi::class)
+    fun isDownloading(context: Context): Boolean {
+        val downloadManager: DownloadManager = MyDownloadService.getDownloadManager(context)
+        val download: Download? = downloadManager.downloadIndex.getDownload(contentUrl)
+        return download != null && download.state == Download.STATE_DOWNLOADING
+    }
 }

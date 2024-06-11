@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.net.SocketTimeoutException
 
 class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
     private val _loginResult = MutableLiveData<User>()
@@ -43,7 +44,7 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
     fun login() {
         viewModelScope.launch {
             val user = apiHandler.login()
-            if (user.id.isNotEmpty())
+            if (user.token.isNotEmpty())
                 _loginResult.postValue(user)
         }
     }
@@ -58,7 +59,7 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
 
         viewModelScope.launch {
             val bitmap = apiHandler.getCover(itemId)
-            bitmap.let {
+            bitmap?.let {
                 // Post new state with updated image.
                 val updatedImages = currentImages.toMutableMap()
                 updatedImages[itemId] = it
@@ -79,16 +80,18 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
             }
 
             val item = apiHandler.getItem(itemId)
-            if (libraryItem == null || libraryItem.userMediaProgress.lastUpdate <= item.userMediaProgress.lastUpdate) {
-                Timber.d("Post server version")
-                libraryItem?.let {
-                    if (libraryItem.userMediaProgress.lastUpdate >= item.userMediaProgress.lastUpdate) {
-                        Timber.d("Local progress is newer or the same")
-                        item.userMediaProgress = libraryItem.userMediaProgress
+            item?.let {
+                if (libraryItem == null || libraryItem.userMediaProgress.lastUpdate <= item.userMediaProgress.lastUpdate) {
+                    Timber.d("Post server version")
+                    libraryItem?.let {
+                        if (libraryItem.userMediaProgress.lastUpdate >= item.userMediaProgress.lastUpdate) {
+                            Timber.d("Local progress is newer or the same")
+                            item.userMediaProgress = libraryItem.userMediaProgress
+                        }
                     }
+                    _isLoading.value = false
+                    _item.postValue(item)
                 }
-                _isLoading.value = false
-                _item.postValue(item)
             }
         }
     }

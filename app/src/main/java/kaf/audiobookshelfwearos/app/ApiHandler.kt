@@ -24,12 +24,14 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import org.json.JSONObject
 import timber.log.Timber
+import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
 
 
 class ApiHandler(private val context: Context) {
-    private var client = OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS).writeTimeout(30, TimeUnit.SECONDS).build()
+    private val timeout: Long = if (BuildConfig.DEBUG) 1 else 10
+    private var client = OkHttpClient.Builder().connectTimeout(timeout, TimeUnit.SECONDS)
+        .readTimeout(timeout, TimeUnit.SECONDS).writeTimeout(timeout, TimeUnit.SECONDS).build()
 
     private var jacksonMapper =
         ObjectMapper().enable(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature())
@@ -44,52 +46,71 @@ class ApiHandler(private val context: Context) {
         return withContext(Dispatchers.IO) {
             val request = getRequest("/api/libraries")
 
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) showToast(response.code.toString())
-                val responseBody = response.body?.string()
-                // Extract token from the JSON response
-                val jsonResponse = responseBody?.let { JSONObject(it) }
-                val libraries = jsonResponse?.getJSONArray("libraries")
-                return@use jacksonMapper.readValue(libraries.toString())
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        showToast(response.code.toString())
+                        return@use listOf()
+                    }
+                    val responseBody = response.body?.string()
+                    // Extract token from the JSON response
+                    val jsonResponse = responseBody?.let { JSONObject(it) }
+                    val libraries = jsonResponse?.getJSONArray("libraries")
+                    return@use jacksonMapper.readValue(libraries.toString())
+                }
+            } catch (e: SocketTimeoutException) {
+                return@withContext listOf()
             }
+
         }
 
     }
 
-    suspend fun getCover(id: String): Bitmap {
+    suspend fun getCover(id: String): Bitmap? {
         return withContext(Dispatchers.IO) {
             val request = getRequest("/api/items/$id/cover")
 
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) showToast(response.code.toString())
-                return@use BitmapFactory.decodeStream(response.body!!.byteStream())
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) showToast(response.code.toString())
+                    return@use BitmapFactory.decodeStream(response.body!!.byteStream())
+                }
+            } catch (e: SocketTimeoutException) {
+                null
             }
         }
     }
 
-    suspend fun getItem(id: String): LibraryItem {
+    suspend fun getItem(id: String): LibraryItem? {
         return withContext(Dispatchers.IO) {
             val request = getRequest("/api/items/$id?expanded=1&include=progress")
 
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) showToast(response.code.toString())
-                val responseBody = response.body?.string()
-                val libraryItem = jacksonMapper.readValue<LibraryItem>(responseBody.toString())
-                val localLibraryItem = db.libraryItemDao().getLibraryItemById(id)
-                localLibraryItem?.let {
-                    if (it.userMediaProgress.lastUpdate > libraryItem.userMediaProgress.lastUpdate) libraryItem.userMediaProgress =
-                        localLibraryItem.userMediaProgress
-                }
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        showToast(response.code.toString())
+                        return@use null
+                    }
+                    val responseBody = response.body?.string()
+                    val libraryItem = jacksonMapper.readValue<LibraryItem>(responseBody.toString())
+                    val localLibraryItem = db.libraryItemDao().getLibraryItemById(id)
+                    localLibraryItem?.let {
+                        if (it.userMediaProgress.lastUpdate > libraryItem.userMediaProgress.lastUpdate) libraryItem.userMediaProgress =
+                            localLibraryItem.userMediaProgress
+                    }
 
-                return@use libraryItem
+                    return@use libraryItem
+                }
+            }catch (e : SocketTimeoutException){
+                return@withContext null
             }
+
         }
     }
 
     suspend fun getLibraryItems(id: String): List<LibraryItem> {
         return withContext(Dispatchers.IO) {
-            if (BuildConfig.DEBUG)
-                Thread.sleep(1500)
+            if (BuildConfig.DEBUG) Thread.sleep(1500)
             val request = getRequest("/api/libraries/$id/items?sort=updatedAt")
 
             client.newCall(request).execute().use { response ->
@@ -116,15 +137,17 @@ class ApiHandler(private val context: Context) {
 
                 val serverItem = getItem(userMediaProgress.libraryItemId)
 
-                if (serverItem.userMediaProgress.lastUpdate > userMediaProgress.lastUpdate) {
-                    Timber.d("Progress on server is more recent. Not uploading")
-                    userMediaProgress.toUpload = false
-                    insertLibraryItemToDB(userMediaProgress)
-                    return@withContext true
-                }
+                serverItem?.let{
+                    if (serverItem.userMediaProgress.lastUpdate > userMediaProgress.lastUpdate) {
+                        Timber.d("Progress on server is more recent. Not uploading")
+                        userMediaProgress.toUpload = false
+                        insertLibraryItemToDB(userMediaProgress)
+                        return@withContext true
+                    }
 
-                Timber.d("Uploading progress...")
-                return@withContext uploadProgress(userMediaProgress)
+                    Timber.d("Uploading progress...")
+                    return@withContext uploadProgress(userMediaProgress)
+                }
             } catch (e: Exception) {
                 Timber.e(e, "Failed to update progress")
             }
@@ -184,15 +207,27 @@ class ApiHandler(private val context: Context) {
             val request = Request.Builder().url(userDataManager.getCompleteAddress() + "/login")
                 .post(requestBody).addHeader("Content-Type", "application/json").build()
 
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    showToast(response.code.toString())
-                    return@use User()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        showToast(response.code.toString())
+                        return@use User()
+                    }
+                    val responseBody = response.body?.string()
+                    val jsonResponse = responseBody?.let { JSONObject(it) }
+                    val user = jsonResponse?.getJSONObject("user")
+                    return@use jacksonMapper.readValue<User>(user.toString())
                 }
-                val responseBody = response.body?.string()
-                val jsonResponse = responseBody?.let { JSONObject(it) }
-                val user = jsonResponse?.getJSONObject("user")
-                return@use jacksonMapper.readValue<User>(user.toString())
+            } catch (e: SocketTimeoutException) {
+                if (userDataManager.token.isNotEmpty()) return@withContext User(
+                    token = userDataManager.token,
+                    id = userDataManager.userId,
+                    username = userDataManager.login
+                )
+                else {
+                    showToast("Connection problem")
+                    return@withContext User()
+                }
             }
         }
     }
