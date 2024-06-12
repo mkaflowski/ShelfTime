@@ -101,7 +101,7 @@ class ApiHandler(private val context: Context) {
 
                     return@use libraryItem
                 }
-            }catch (e : SocketTimeoutException){
+            } catch (e: SocketTimeoutException) {
                 return@withContext null
             }
 
@@ -137,7 +137,7 @@ class ApiHandler(private val context: Context) {
 
                 val serverItem = getItem(userMediaProgress.libraryItemId)
 
-                serverItem?.let{
+                serverItem?.let {
                     if (serverItem.userMediaProgress.lastUpdate > userMediaProgress.lastUpdate) {
                         Timber.d("Progress on server is more recent. Not uploading")
                         userMediaProgress.toUpload = false
@@ -204,10 +204,15 @@ class ApiHandler(private val context: Context) {
             val requestBody =
                 RequestBody.create("application/json".toMediaTypeOrNull(), jsonBody.toString())
 
-            val request = Request.Builder().url(userDataManager.getCompleteAddress() + "/login")
-                .post(requestBody).addHeader("Content-Type", "application/json").build()
+
+
+
+
 
             try {
+                val request = Request.Builder().url(userDataManager.getCompleteAddress() + "/login")
+                    .post(requestBody).addHeader("Content-Type", "application/json").build()
+
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
                         showToast(response.code.toString())
@@ -228,6 +233,10 @@ class ApiHandler(private val context: Context) {
                     showToast("Connection problem")
                     return@withContext User()
                 }
+            }catch (e : Exception){
+                e.printStackTrace()
+                e.message?.let { showToast(it) }
+                return@withContext User()
             }
         }
     }
