@@ -28,3 +28,11 @@ Video: https://github.com/mkaflowski/Audiobookshelf-WearOS/raw/main/raw/demo.mp4
 - **Full Audiobook Download**: Provides the option to download entire audiobooks for offline listening.
 - **Progress Synchronization**: Automatically syncs listening progress with the server to maintain continuity across different devices.
 - **Offline Mode**: Listen downloaded audiobooks, sync progress later when are you connected.
+
+## TODO
+- [ ] Volume control
+- [ ] Next/Previous
+- [ ] Speed control
+- [ ] Offline covers
+- [ ] Getting unfinished audiobooks
+ 
