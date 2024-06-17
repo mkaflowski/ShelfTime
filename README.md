@@ -1,4 +1,4 @@
-# Audiobookshelf WearOS
+# AudioShelfTime
 
 ![banner](https://github.com/mkaflowski/Audiobookshelf-WearOS/blob/main/raw/banner%20small.jpg?raw=true)
 
