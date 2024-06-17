@@ -1,4 +1,4 @@
-# AudioShelfTime
+# ShelfTime
 
 ![banner](https://github.com/mkaflowski/Audiobookshelf-WearOS/blob/main/raw/banner%20small.jpg?raw=true)
 
@@ -10,9 +10,6 @@
 ## About
 
 This is a standalone app for Android Wear OS. This project is made as a side project. The application was created because at the moment the creators of the main application have no plans to create a version for smart watches.
-
-Video: https://github.com/mkaflowski/Audiobookshelf-WearOS/raw/main/raw/demo.mp4
-
 
 ---
 
