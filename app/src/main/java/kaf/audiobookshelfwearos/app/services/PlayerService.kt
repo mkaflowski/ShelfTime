@@ -77,6 +77,7 @@ class PlayerService : MediaSessionService() {
                 super.onMediaItemTransition(mediaItem, reason)
                 updateUIMetadata()
             }
+
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
                 super.onMediaMetadataChanged(mediaMetadata)
                 Timber.d("mediaMetadata - " + mediaMetadata.trackNumber)
@@ -89,7 +90,11 @@ class PlayerService : MediaSessionService() {
                     Player.STATE_BUFFERING -> Timber
                         .d("ExoPlayer is buffering")
 
-                    Player.STATE_READY -> Timber.d("ExoPlayer is ready")
+                    Player.STATE_READY -> {
+                        Timber.d("ExoPlayer is ready " + exoPlayer.currentPosition)
+                        updateUIMetadata()
+                    }
+
                     Player.STATE_ENDED -> {
                         Timber.d("ExoPlayer has ended")
                         sendBroadcast(Intent("$packageName.ACTION_TRACK_ENDED"))
@@ -139,7 +144,7 @@ class PlayerService : MediaSessionService() {
     }
 
     fun updateUIMetadata() {
-        val timeInS = getCurrentTotalPositionInS()
+        val timeInS = getCurrentTotalPositionInS() + START_OFFSET_SECONDS + 1
 
         var currentChapter = Chapter()
         for (chapter in audiobook.media.chapters) {

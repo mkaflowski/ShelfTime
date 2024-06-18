@@ -231,7 +231,6 @@ class PlayerActivity : ComponentActivity() {
 
     }
 
-
     @Preview(showBackground = true, widthDp = 250, heightDp = 250)
     @Composable
     fun PlaybackControlsPreview() {

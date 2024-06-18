@@ -16,6 +16,7 @@ import kaf.audiobookshelfwearos.app.data.UserMediaProgress
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -29,7 +30,7 @@ import java.util.concurrent.TimeUnit
 
 
 class ApiHandler(private val context: Context) {
-    private val timeout: Long = if (BuildConfig.DEBUG) 1 else 10
+    private val timeout: Long = if (BuildConfig.DEBUG) 3 else 7
     private var client = OkHttpClient.Builder().connectTimeout(timeout, TimeUnit.SECONDS)
         .readTimeout(timeout, TimeUnit.SECONDS).writeTimeout(timeout, TimeUnit.SECONDS).build()
 
@@ -84,7 +85,6 @@ class ApiHandler(private val context: Context) {
     suspend fun getItem(id: String): LibraryItem? {
         return withContext(Dispatchers.IO) {
             val request = getRequest("/api/items/$id?expanded=1&include=progress")
-
             try {
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
@@ -233,7 +233,7 @@ class ApiHandler(private val context: Context) {
                     showToast("Connection problem")
                     return@withContext User()
                 }
-            }catch (e : Exception){
+            } catch (e: Exception) {
                 e.printStackTrace()
                 e.message?.let { showToast(it) }
                 return@withContext User()

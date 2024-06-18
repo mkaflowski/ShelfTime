@@ -40,4 +40,9 @@ data class LibraryItem(
         set(value) {
             media.metadata.title = value
         }
+    var author: String
+        get() = media.metadata.authorName
+        set(value) {
+            media.metadata.authorName = value
+        }
 }

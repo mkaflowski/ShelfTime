@@ -28,6 +28,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumnDefaults
 import androidx.wear.compose.foundation.lazy.itemsIndexed
@@ -188,6 +189,14 @@ class BookListActivity : ComponentActivity() {
             CoverImage(itemId = item.id)
             Text(
                 text = item.title,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .padding(start = 10.dp, end = 10.dp)
+                    .fillMaxWidth()
+            )
+            Text(
+                text = item.author,
+                fontSize = 10.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .padding(start = 10.dp, end = 10.dp)

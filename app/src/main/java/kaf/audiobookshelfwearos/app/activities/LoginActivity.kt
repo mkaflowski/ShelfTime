@@ -1,6 +1,10 @@
 package kaf.audiobookshelfwearos.app.activities
 
+import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -90,7 +94,25 @@ class LoginActivity : ComponentActivity() {
 
         loginButton.setOnClickListener {
             Timber.d("Login clicked")
+            if(userDataManager.token.isNotEmpty() && !isInternetAvailable()){
+                startActivity(Intent(this, BookListActivity::class.java))
+                startActivity(intent)
+            }
+
             viewModel.login()
+        }
+    }
+
+    private fun isInternetAvailable(): Boolean {
+        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val actNw = connectivityManager.getNetworkCapabilities(network) ?: return false
+        Timber.d(""+actNw.transportInfo)
+        return when {
+            actNw.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> true
+            actNw.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> false
+            actNw.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> true
+            else -> false
         }
     }
 

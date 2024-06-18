@@ -7,7 +7,7 @@ data class Metadata(
     var title: String = "",
     val titleIgnorePrefix: String? = "",
     val subtitle: String? = "",
-    val authorName: String = "",
+    var authorName: String = "",
     val narratorName: String? = "",
     val seriesName: String? = "",
     val genres: List<String> = emptyList(),
