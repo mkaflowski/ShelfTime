@@ -11,14 +11,13 @@ android {
 
     defaultConfig {
         applicationId = "kaf.audiobookshelfwearos"
-        minSdk = 30
-        targetSdk = 34
-        versionCode = 1
-        versionName = "0.9"
+        minSdk = 26
+        targetSdk = 32
+        versionCode = 3
+        versionName = "1.0"
         vectorDrawables {
             useSupportLibrary = true
         }
-
     }
 
     buildTypes {
@@ -91,6 +90,9 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-dash:1.3.1")
     implementation("androidx.media3:media3-ui:1.3.1")
     implementation("androidx.media3:media3-session:1.3.1")
+    implementation ("androidx.wear:wear-ongoing:1.0.0")
+    // Includes LocusIdCompat and new Notification categories for Ongoing Activity.
+    implementation ("androidx.core:core:1.6.0")
 
     androidTestImplementation(platform("androidx.compose:compose-bom:2023.08.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")

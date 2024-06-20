@@ -1,10 +1,19 @@
 package kaf.audiobookshelfwearos.app.services
 
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Binder
 import android.os.IBinder
 import androidx.annotation.OptIn
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -13,16 +22,17 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.offline.DownloadRequest
-import androidx.media3.exoplayer.offline.DownloadService.buildAddDownloadIntent
 import androidx.media3.exoplayer.source.ConcatenatingMediaSource
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.wear.ongoing.OngoingActivity
+import androidx.wear.ongoing.Status
+import kaf.audiobookshelfwearos.R
 import kaf.audiobookshelfwearos.app.ApiHandler
 import kaf.audiobookshelfwearos.app.MainApp
+import kaf.audiobookshelfwearos.app.activities.PlayerActivity
 import kaf.audiobookshelfwearos.app.data.Chapter
 import kaf.audiobookshelfwearos.app.data.LibraryItem
 import kaf.audiobookshelfwearos.app.data.room.AppDatabase
@@ -43,12 +53,14 @@ class PlayerService : MediaSessionService() {
 
     private val binder = LocalBinder()
     private lateinit var exoPlayer: ExoPlayer
-    private val CHANNEL_ID = "PlayerServiceChannel"
     private val START_OFFSET_SECONDS = 5
     private var mediaSession: MediaSession? = null
+    private lateinit var notificationManager: NotificationManagerCompat
 
     private var playbackStartTime: Long = 0
     private var totalPlaybackTime: Long = 0
+    private var ONGOING_NOTIFICATION_ID: Int = 151
+    private var CHANNEL_NAME: String = "Player"
 
     private lateinit var audiobook: LibraryItem
     private lateinit var db: AppDatabase
@@ -62,13 +74,119 @@ class PlayerService : MediaSessionService() {
         return binder
     }
 
+    @UnstableApi
     override fun onCreate() {
         super.onCreate()
+        createChannel(this)
+        notificationManager = NotificationManagerCompat.from(applicationContext)
         db = (applicationContext as MainApp).database
         createPlayer()
         mediaSession = MediaSession.Builder(this, exoPlayer).build()
     }
 
+    private fun createChannel(context: Context) {
+        val mNotificationManager =
+            context.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        // The id of the channel.
+        // The user-visible name of the channel.
+        val name: CharSequence = "Player"
+        // The user-visible description of the channel.
+        val description: String = "Player"
+        val importance = NotificationManager.IMPORTANCE_LOW
+        val mChannel = NotificationChannel(CHANNEL_NAME, name, importance)
+        // Configure the notification channel.
+        mChannel.description = description
+        mChannel.setShowBadge(true)
+        mChannel.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        mNotificationManager.createNotificationChannel(mChannel)
+    }
+
+    private fun generateOngoingActivityNotification() {
+        if (!exoPlayer.isPlaying) {
+            notificationManager.cancel(ONGOING_NOTIFICATION_ID)
+            return
+        }
+
+        // Main steps for building a BIG_TEXT_STYLE notification:
+        //      0. Get data
+        //      1. Create Notification Channel for O+
+        //      2. Build the BIG_TEXT_STYLE
+        //      3. Set up Intent / Pending Intent for notification
+        //      4. Build and issue the notification
+
+        // 0. Get data (note, the main notification text comes from the parameter above).
+        val titleText = getString(R.string.app_name)
+
+        // 2. Build the BIG_TEXT_STYLE.
+        val bigTextStyle = NotificationCompat.BigTextStyle()
+            .bigText("Playing")
+            .setBigContentTitle(titleText)
+
+        // 3. Set up main Intent/Pending Intents for notification.
+        val launchActivityIntent = Intent(this, PlayerActivity::class.java)
+
+        val activityPendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            launchActivityIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        // 4. Build and issue the notification.
+        val notificationCompatBuilder =
+            NotificationCompat.Builder(applicationContext, CHANNEL_NAME)
+
+        val notificationBuilder = notificationCompatBuilder
+            .setStyle(bigTextStyle)
+            .setContentTitle(titleText)
+            .setContentText("Playing")
+            .setSmallIcon(R.drawable.splash_icon)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            // Makes Notification an Ongoing Notification (a Notification with a background task).
+            .setOngoing(true)
+            // For an Ongoing Activity, used to decide priority on the watch face.
+            .setCategory(NotificationCompat.CATEGORY_WORKOUT)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+
+        // Create an Ongoing Activity.
+        val ongoingActivityStatus = Status.Builder()
+            // Sets the text used across various surfaces.
+            .addTemplate("Playing")
+            .build()
+
+        val ongoingActivity =
+            OngoingActivity.Builder(
+                applicationContext,
+                ONGOING_NOTIFICATION_ID,
+                notificationBuilder
+            )
+                // Sets icon that will appear on the watch face in active mode. If it isn't set,
+                // the watch face will use the static icon in active mode.
+                .setAnimatedIcon(R.drawable.splash_icon)
+                // Sets the icon that will appear on the watch face in ambient mode.
+                // Falls back to Notification's smallIcon if not set. If neither is set,
+                // an Exception is thrown.
+                .setStaticIcon(R.drawable.splash_icon)
+                // Sets the tap/touch event, so users can re-enter your app from the
+                // other surfaces.
+                // Falls back to Notification's contentIntent if not set. If neither is set,
+                // an Exception is thrown.
+                .setTouchIntent(activityPendingIntent)
+                // In our case, sets the text used for the Ongoing Activity (more options are
+                // available for timers and stop watches).
+                .setStatus(ongoingActivityStatus)
+                .build()
+
+        // Applies any Ongoing Activity updates to the notification builder.
+        // This method should always be called right before you build your notification,
+        // since an Ongoing Activity doesn't hold references to the context.
+        ongoingActivity.apply(applicationContext)
+
+
+        notificationManager.notify(ONGOING_NOTIFICATION_ID, notificationBuilder.build())
+    }
+
+    @UnstableApi
     private fun createPlayer() {
         exoPlayer = ExoPlayer.Builder(this).build()
 
@@ -85,7 +203,14 @@ class PlayerService : MediaSessionService() {
                 updateUIMetadata()
             }
 
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                super.onPlayWhenReadyChanged(playWhenReady, reason)
+                generateOngoingActivityNotification()
+            }
+
             override fun onPlaybackStateChanged(state: Int) {
+                generateOngoingActivityNotification()
+
                 when (state) {
                     Player.STATE_BUFFERING -> Timber
                         .d("ExoPlayer is buffering")
@@ -156,6 +281,8 @@ class PlayerService : MediaSessionService() {
             putExtra("CHAPTER_TITLE", currentChapter.title)
         }
         sendBroadcast(intent)
+        if (exoPlayer.isPlaying)
+            sendBroadcast(Intent("$packageName.ACTION_PLAYING"))
     }
 
     private fun getCurrentTotalPositionInS(): Double {
@@ -253,6 +380,7 @@ class PlayerService : MediaSessionService() {
         }
     }
 
+
     fun getTotalPlaybackTime(): Long {
         return totalPlaybackTime
     }
@@ -325,7 +453,7 @@ class PlayerService : MediaSessionService() {
                     time
                 )
             }
-            context.startService(serviceIntent)
+            context.startForegroundService(serviceIntent)
         }
     }
 

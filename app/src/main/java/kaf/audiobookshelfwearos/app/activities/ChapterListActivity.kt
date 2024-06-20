@@ -171,7 +171,7 @@ class ChapterListActivity : ComponentActivity() {
 
         LaunchedEffect(isDownloading) {
             while (isDownloading) {
-//                delay(1000L)
+                delay(1000L)
                 isDownloading = libraryItem.media.tracks.any { track ->
                     track.isDownloading(this@ChapterListActivity)
                 }
