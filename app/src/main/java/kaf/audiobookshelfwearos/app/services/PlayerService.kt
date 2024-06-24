@@ -140,7 +140,7 @@ class PlayerService : MediaSessionService() {
             .setStyle(bigTextStyle)
             .setContentTitle(titleText)
             .setContentText("Playing")
-            .setSmallIcon(R.drawable.splash_icon)
+            .setSmallIcon(R.drawable.notification)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             // Makes Notification an Ongoing Notification (a Notification with a background task).
             .setOngoing(true)
@@ -162,11 +162,11 @@ class PlayerService : MediaSessionService() {
             )
                 // Sets icon that will appear on the watch face in active mode. If it isn't set,
                 // the watch face will use the static icon in active mode.
-                .setAnimatedIcon(R.drawable.splash_icon)
+                .setAnimatedIcon(R.drawable.notification)
                 // Sets the icon that will appear on the watch face in ambient mode.
                 // Falls back to Notification's smallIcon if not set. If neither is set,
                 // an Exception is thrown.
-                .setStaticIcon(R.drawable.splash_icon)
+                .setStaticIcon(R.drawable.notification)
                 // Sets the tap/touch event, so users can re-enter your app from the
                 // other surfaces.
                 // Falls back to Notification's contentIntent if not set. If neither is set,
