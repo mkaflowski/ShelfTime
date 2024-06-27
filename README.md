@@ -4,6 +4,7 @@
 
 
 [Audiobookshelf](https://github.com/advplyr/audiobookshelf) for Android WearOS!
+
 <a href="http://www.play.google.com/store/apps/details?id=kaf.audiobookshelfwearos">
     <img src="https://play.google.com/intl/en_us/badges/images/generic/en_badge_web_generic.png" width="30%" alt="Google Play Badge">
 </a>
@@ -33,4 +34,3 @@ This is a standalone app for Android Wear OS. This project is made as a side pro
 - [ ] Speed control
 - [ ] Offline covers
 - [ ] Getting unfinished audiobooks
- 
