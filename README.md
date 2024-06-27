@@ -19,14 +19,14 @@ This is a standalone app for Android Wear OS. This project is made as a side pro
 
 ## Features
 
-- **User Authentication**: Allows users to securely log in to access their accounts..
-- **Display Audiobooks**: Showcases all available audiobooks on the server.
-- **Chapter Information Retrieval**: Enables users to fetch detailed information about the chapters of each audiobook.
-- **Listening**: Allows users to listen to audiobooks directly through the app.
-- **Controls**: Control the playback (rewind, fast forward etc.).
-- **Full Audiobook Download**: Provides the option to download entire audiobooks for offline listening.
-- **Progress Synchronization**: Automatically syncs listening progress with the server to maintain continuity across different devices.
-- **Offline Mode**: Listen downloaded audiobooks, sync progress later when are you connected.
+- **User Authentication** 🔒: Allows users to securely log in to access their accounts.
+- **Display Audiobooks** 📚: Showcases all available audiobooks on the server.
+- **Chapter Information Retrieval** 🔍: Enables users to fetch detailed information about the chapters of each audiobook.
+- **Listening** 🎧: Allows users to listen to audiobooks directly through the app.
+- **Controls** ⏪⏩: Control the playback (rewind, fast forward etc.).
+- **Full Audiobook Download** ⬇️: Provides the option to download entire audiobooks for offline listening.
+- **Progress Synchronization** 🔄: Automatically syncs listening progress with the server to maintain continuity across different devices.
+- **Offline Mode** 📴: Listen to downloaded audiobooks, sync progress later when you are connected.
 
 ## TODO
 - [ ] Volume control
