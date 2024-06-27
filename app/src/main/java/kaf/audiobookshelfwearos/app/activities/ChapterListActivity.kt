@@ -30,13 +30,11 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -261,11 +259,13 @@ class ChapterListActivity : ComponentActivity() {
 
     @Composable
     fun PlayButton(item: LibraryItem) {
+        val buttonText = if (item.userMediaProgress.currentTime > 10) "Continue" else "Start"
+
         Button(
             onClick = {
                 saveAudiobookToDB(item)
                 // Start the PlayerService
-                PlayerService.setAudiobook(this, item)
+                PlayerService.setAudiobook(this, item, action = "continue")
                 val intent = Intent(this@ChapterListActivity, PlayerActivity::class.java)
                 startActivity(intent)
             },
@@ -281,7 +281,7 @@ class ChapterListActivity : ComponentActivity() {
                     tint = Color.White,
                     modifier = Modifier.padding(end = 8.dp)
                 )
-                Text(text = "Continue", fontSize = 16.sp)
+                Text(text = buttonText, fontSize = 16.sp)
             }
         }
     }

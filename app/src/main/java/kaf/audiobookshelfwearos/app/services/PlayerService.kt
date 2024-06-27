@@ -62,7 +62,7 @@ class PlayerService : MediaSessionService() {
     private var ONGOING_NOTIFICATION_ID: Int = 151
     private var CHANNEL_NAME: String = "Player"
 
-    private lateinit var audiobook: LibraryItem
+    private var audiobook = LibraryItem()
     private lateinit var db: AppDatabase
 
     inner class LocalBinder : Binder() {
@@ -212,8 +212,13 @@ class PlayerService : MediaSessionService() {
                 generateOngoingActivityNotification()
 
                 when (state) {
-                    Player.STATE_BUFFERING -> Timber
-                        .d("ExoPlayer is buffering")
+                    Player.STATE_BUFFERING -> {
+                        Timber
+                            .d("ExoPlayer is buffering")
+
+                        val intent = Intent("$packageName.ACTION_BUFFERING")
+                        sendBroadcast(intent)
+                    }
 
                     Player.STATE_READY -> {
                         Timber.d("ExoPlayer is ready " + exoPlayer.currentPosition)
@@ -269,6 +274,11 @@ class PlayerService : MediaSessionService() {
     }
 
     fun updateUIMetadata() {
+        if (exoPlayer.playbackState == Player.STATE_BUFFERING) {
+            val intent = Intent("$packageName.ACTION_BUFFERING")
+            sendBroadcast(intent)
+        }
+
         val timeInS = getCurrentTotalPositionInS() + START_OFFSET_SECONDS + 1
 
         var currentChapter = Chapter()
@@ -406,13 +416,19 @@ class PlayerService : MediaSessionService() {
             }
         }
 
-        intent?.getStringExtra("id")?.let {
+        intent?.getStringExtra("id")?.let { id ->
             GlobalScope.launch {
-                db.libraryItemDao().getLibraryItemById(it)?.let {
+                db.libraryItemDao().getLibraryItemById(id)?.let {
                     withContext(Dispatchers.Main) {
                         var time = intent.getDoubleExtra("time", -1.0)
                         if (time < 0)
                             time = it.userMediaProgress.currentTime
+
+                        if(intent.getStringExtra("action").equals("continue")){
+                            if(audiobook.id.equals(id))
+                                return@withContext
+                        }
+
                         setAudiobook(it, time)
                     }
                 }
@@ -442,7 +458,7 @@ class PlayerService : MediaSessionService() {
     }
 
     companion object {
-        fun setAudiobook(context: Context, item: LibraryItem, time: Double = -1.0) {
+        fun setAudiobook(context: Context, item: LibraryItem, time: Double = -1.0, action: String = "default") {
             val serviceIntent = Intent(context, PlayerService::class.java).apply {
                 putExtra(
                     "id",
@@ -451,6 +467,10 @@ class PlayerService : MediaSessionService() {
                 putExtra(
                     "time",
                     time
+                )
+                putExtra(
+                    "action",
+                    action
                 )
             }
             context.startForegroundService(serviceIntent)

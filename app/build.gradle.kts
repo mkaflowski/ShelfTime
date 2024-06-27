@@ -13,8 +13,8 @@ android {
         applicationId = "kaf.audiobookshelfwearos"
         minSdk = 26
         targetSdk = 32
-        versionCode = 4
-        versionName = "1.1"
+        versionCode = 5
+        versionName = "1.2"
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -56,6 +56,7 @@ android {
 }
 
 dependencies {
+    implementation("androidx.wear:wear-tooling-preview:1.0.0")
     val roomVersion = "2.6.1"
     implementation("androidx.room:room-runtime:$roomVersion")
     annotationProcessor("androidx.room:room-compiler:$roomVersion")
