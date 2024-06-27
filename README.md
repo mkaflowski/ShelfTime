@@ -5,7 +5,7 @@
 
 [Audiobookshelf](https://github.com/advplyr/audiobookshelf) for Android WearOS!
 
-<a href="http://www.play.google.com/store/apps/details?id=kaf.audiobookshelfwearos">
+<a href="https://www.play.google.com/store/apps/details?id=kaf.audiobookshelfwearos">
     <img src="https://play.google.com/intl/en_us/badges/images/generic/en_badge_web_generic.png" width="30%" alt="Google Play Badge">
 </a>
 
