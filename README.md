@@ -1,13 +1,18 @@
 # ShelfTime
 
-![banner](https://github.com/mkaflowski/Audiobookshelf-WearOS/blob/main/raw/banner%20small.jpg?raw=true)
+<p align="center">
+    <img src="https://github.com/mkaflowski/Audiobookshelf-WearOS/blob/main/raw/banner%20small.jpg?raw=true" alt="banner">
+</p>
 
+<p align="center">
+    <a href="https://github.com/advplyr/audiobookshelf">Audiobookshelf</a> for Android WearOS!
+</p>
 
-[Audiobookshelf](https://github.com/advplyr/audiobookshelf) for Android WearOS!
-
-<a href="http://www.play.google.com/store/apps/details?id=kaf.audiobookshelfwearos">
-    <img src="https://play.google.com/intl/en_us/badges/images/generic/en_badge_web_generic.png" width="30%" alt="Google Play Badge">
-</a>
+<p align="center">
+    <a href="http://www.play.google.com/store/apps/details?id=kaf.audiobookshelfwearos">
+        <img src="https://play.google.com/intl/en_us/badges/images/generic/en_badge_web_generic.png" width="30%" alt="Google Play Badge">
+    </a>
+</p>
 
 ---
 
