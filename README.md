@@ -29,7 +29,7 @@ This is a standalone app for Android Wear OS. This project is made as a side pro
 - **Offline Mode** 📴: Listen to downloaded audiobooks, sync progress later when you are connected.
 
 ## TODO
-- [ ] Volume control
+- [x] Volume control
 - [ ] Next/Previous
 - [ ] Speed control
 - [ ] Offline covers
