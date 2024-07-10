@@ -25,6 +25,7 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import org.json.JSONObject
 import timber.log.Timber
+import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
 
@@ -78,6 +79,9 @@ class ApiHandler(private val context: Context) {
                 }
             } catch (e: SocketTimeoutException) {
                 null
+            }catch (e: ConnectException){
+                showToast(e.message.toString())
+                null
             }
         }
     }
@@ -103,6 +107,9 @@ class ApiHandler(private val context: Context) {
                 }
             } catch (e: SocketTimeoutException) {
                 return@withContext null
+            }catch (e: Exception){
+                showToast(e.message.toString())
+                null
             }
 
         }
@@ -203,11 +210,6 @@ class ApiHandler(private val context: Context) {
 
             val requestBody =
                 RequestBody.create("application/json".toMediaTypeOrNull(), jsonBody.toString())
-
-
-
-
-
 
             try {
                 val request = Request.Builder().url(userDataManager.getCompleteAddress() + "/login")

@@ -1,5 +1,6 @@
 package kaf.audiobookshelfwearos.app.activities
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
@@ -32,7 +33,13 @@ class LoginActivity : ComponentActivity() {
     private lateinit var loginButton: Button
     private lateinit var userDataManager: UserDataManager
 
-    private val viewModel : ApiViewModel by viewModels { ApiViewModel.ApiViewModelFactory(ApiHandler(this))}
+    private val viewModel: ApiViewModel by viewModels {
+        ApiViewModel.ApiViewModelFactory(
+            ApiHandler(
+                this
+            )
+        )
+    }
 
     private val map: Map<EditText, KMutableProperty1<UserDataManager, String>>
         get() {
@@ -49,8 +56,11 @@ class LoginActivity : ComponentActivity() {
 
         super.onCreate(savedInstanceState)
         setTheme(android.R.style.Theme_DeviceDefault)
+
+
+
         userDataManager = UserDataManager(this)
-        if(userDataManager.token.isNotEmpty()){
+        if (userDataManager.token.isNotEmpty()) {
             viewModel.login()
         }
 
@@ -84,7 +94,8 @@ class LoginActivity : ComponentActivity() {
             })
         }
 
-        viewModel.loginResult.observe(this
+        viewModel.loginResult.observe(
+            this
         ) { user ->
             Timber.d(user.token)
             userDataManager.token = user.token
@@ -94,20 +105,26 @@ class LoginActivity : ComponentActivity() {
 
         loginButton.setOnClickListener {
             Timber.d("Login clicked")
-            if(userDataManager.token.isNotEmpty() && !isInternetAvailable()){
+            if (userDataManager.token.isNotEmpty() && !isInternetAvailable()) {
                 startActivity(Intent(this, BookListActivity::class.java))
                 startActivity(intent)
             }
 
             viewModel.login()
         }
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            if (!shouldShowRequestPermissionRationale(Manifest.permission.LOCATION_HARDWARE))
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+        }
     }
 
     private fun isInternetAvailable(): Boolean {
-        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val connectivityManager =
+            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = connectivityManager.activeNetwork ?: return false
         val actNw = connectivityManager.getNetworkCapabilities(network) ?: return false
-        Timber.d(""+actNw.transportInfo)
+        Timber.d("" + actNw.transportInfo)
         return when {
             actNw.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> true
             actNw.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> false

@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
+import android.media.AudioManager
 import android.os.Bundle
 import android.os.IBinder
 import androidx.activity.ComponentActivity
@@ -23,14 +24,16 @@ import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stadium
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,15 +41,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Devices
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.CircularProgressIndicator
+import androidx.wear.compose.material.InlineSlider
+import androidx.wear.compose.material.InlineSliderDefaults
 import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.TimeText
 import androidx.wear.tooling.preview.devices.WearDevices
 import kaf.audiobookshelfwearos.app.services.PlayerService
 import kotlinx.coroutines.delay
@@ -90,23 +95,25 @@ class PlayerActivity : ComponentActivity() {
         var currentPosition by remember { mutableLongStateOf(0L) }
         var duration by remember { mutableLongStateOf(0L) }
         var chapterTitle by remember { mutableStateOf("") }
+
         LaunchedEffect(Unit) {
             while (true) {
                 if (isBound) {
                     currentPosition = playerService?.getCurrentPosition() ?: 0L
                     playerService?.getDuration()?.let {
-                        if (it > 0)
-                            duration = it
+                        if (it > 0) duration = it
                     }
                 }
                 delay(1000)
             }
         }
 
+        TimeText()
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(14.dp),
+                .padding(12.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -136,14 +143,16 @@ class PlayerActivity : ComponentActivity() {
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(modifier = Modifier
-                        .fillMaxHeight()
-                        .padding(12.dp)
-                        .weight(1f), onClick = {
-                        val intent = Intent(this@PlayerActivity, PlayerService::class.java)
-                        intent.action = "ACTION_REWIND"
-                        startService(intent)
-                    }) {
+                    IconButton(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .padding(12.dp)
+                            .weight(1f),
+                        onClick = {
+                            val intent = Intent(this@PlayerActivity, PlayerService::class.java)
+                            intent.action = "ACTION_REWIND"
+                            startService(intent)
+                        }) {
                         Icon(
                             tint = Color.White,
                             modifier = Modifier.fillMaxSize(),
@@ -159,27 +168,24 @@ class PlayerActivity : ComponentActivity() {
                         contentAlignment = Alignment.Center
                     ) {
                         var progressBar = 0f
-                        if (duration > 0)
-                            progressBar = currentPosition.toFloat() / duration
+                        if (duration > 0) progressBar = currentPosition.toFloat() / duration
                         Timber.d("duration $duration")
                         Timber.d("currentPosition $currentPosition")
                         Timber.d("progressBar $progressBar")
-                        if (isBuffering)
-                            CircularProgressIndicator(
-                                modifier = Modifier.fillMaxSize(),
-                                startAngle = 0f,
-                                indicatorColor = MaterialTheme.colors.secondary,
-                                trackColor = MaterialTheme.colors.onBackground.copy(alpha = 0.1f),
-                                strokeWidth = 3.dp
-                            ) else
-                            CircularProgressIndicator(
-                                modifier = Modifier.fillMaxSize(),
-                                progress = progressBar,
-                                startAngle = 0f,
-                                indicatorColor = MaterialTheme.colors.secondary,
-                                trackColor = MaterialTheme.colors.onBackground.copy(alpha = 0.1f),
-                                strokeWidth = 3.dp
-                            )
+                        if (isBuffering) CircularProgressIndicator(
+                            modifier = Modifier.fillMaxSize(),
+                            startAngle = 0f,
+                            indicatorColor = MaterialTheme.colors.secondary,
+                            trackColor = MaterialTheme.colors.onBackground.copy(alpha = 0.1f),
+                            strokeWidth = 3.dp
+                        ) else CircularProgressIndicator(
+                            modifier = Modifier.fillMaxSize(),
+                            progress = progressBar,
+                            startAngle = 0f,
+                            indicatorColor = MaterialTheme.colors.secondary,
+                            trackColor = MaterialTheme.colors.onBackground.copy(alpha = 0.1f),
+                            strokeWidth = 3.dp
+                        )
                         IconButton(modifier = Modifier.fillMaxSize(), onClick = {
                             val intent = Intent(this@PlayerActivity, PlayerService::class.java)
                             intent.action = "ACTION_PLAY_PAUSE"
@@ -219,59 +225,119 @@ class PlayerActivity : ComponentActivity() {
                 modifier = Modifier
                     .weight(1f)
                     .padding(bottom = 10.dp)
-                    .fillMaxWidth(), contentAlignment = Alignment.Center
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "${timeToString(currentPosition / 1000)} / ${timeToString(duration / 1000)}",
-                    color = Color.LightGray,
-                    fontSize = 14.sp
-                )
+                BottomLayout(currentPosition, duration)
             }
         }
 
-        if (!isPreview)
-            DisposableEffect(Unit) {
-                val playerReceiver = object : BroadcastReceiver() {
-                    override fun onReceive(context: Context?, intent: Intent?) {
-                        when (intent?.action) {
-                            "$packageName.ACTION_PLAYING" -> {
-                                isPlaying = true // Update the UI state
-                                isBuffering = false
-                            }
+        if (!isPreview) DisposableEffect(Unit) {
+            val playerReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    when (intent?.action) {
+                        "$packageName.ACTION_PLAYING" -> {
+                            isPlaying = true // Update the UI state
+                            isBuffering = false
+                        }
 
-                            "$packageName.ACTION_BUFFERING" -> {
-                                isPlaying = false
-                                isBuffering = true
-                            }
+                        "$packageName.ACTION_BUFFERING" -> {
+                            isPlaying = false
+                            isBuffering = true
+                        }
 
-                            "$packageName.ACTION_PAUSED" -> {
-                                isPlaying = false // Update the UI state
-                                isBuffering = false
-                            }
+                        "$packageName.ACTION_PAUSED" -> {
+                            isPlaying = false // Update the UI state
+                            isBuffering = false
+                        }
 
-                            "$packageName.ACTION_UPDATE_METADATA" -> {
-                                intent.getStringExtra("CHAPTER_TITLE")?.let {
-                                    chapterTitle = it
-                                    Timber.d("chapterTitle = " + chapterTitle)
-                                }
+                        "$packageName.ACTION_UPDATE_METADATA" -> {
+                            intent.getStringExtra("CHAPTER_TITLE")?.let {
+                                chapterTitle = it
+                                Timber.d("chapterTitle = " + chapterTitle)
                             }
                         }
                     }
                 }
-                val filter = IntentFilter().apply {
-                    addAction("$packageName.ACTION_BUFFERING")
-                    addAction("$packageName.ACTION_PLAYING")
-                    addAction("$packageName.ACTION_PAUSED")
-                    addAction("$packageName.ACTION_UPDATE_METADATA")
-                }
-                this@PlayerActivity.registerReceiver(playerReceiver, filter)
-                playerService?.updateUIMetadata()
-
-                onDispose {
-                    this@PlayerActivity.unregisterReceiver(playerReceiver)
-                }
             }
+            val filter = IntentFilter().apply {
+                addAction("$packageName.ACTION_BUFFERING")
+                addAction("$packageName.ACTION_PLAYING")
+                addAction("$packageName.ACTION_PAUSED")
+                addAction("$packageName.ACTION_UPDATE_METADATA")
+            }
+            this@PlayerActivity.registerReceiver(playerReceiver, filter)
+            playerService?.updateUIMetadata()
 
+            onDispose {
+                this@PlayerActivity.unregisterReceiver(playerReceiver)
+            }
+        }
+
+    }
+
+    @Composable
+    private fun BottomLayout(currentPosition: Long, duration: Long) {
+        var showVolumeSlider by remember { mutableStateOf(false) }
+
+        if (!showVolumeSlider) Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 14.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "${timeToString(currentPosition / 1000)} / ${timeToString(duration / 1000)}",
+                color = Color.LightGray,
+                fontSize = 11.sp
+            )
+            IconButton(modifier = Modifier
+                .fillMaxHeight()
+                .weight(1f), onClick = {
+                showVolumeSlider = true
+            }) {
+                Icon(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(2.dp),
+                    tint = Color.Gray,
+                    imageVector = Icons.Filled.VolumeUp,
+                    contentDescription = "Volume"
+                )
+            }
+        }
+        else {
+            val context = LocalContext.current
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+            var volume by remember {
+                mutableIntStateOf(audioManager.getStreamVolume(AudioManager.STREAM_MUSIC))
+            }
+            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+
+            Column {
+                InlineSlider(
+                    modifier = Modifier.padding(10.dp),
+                    value = volume.toFloat(),
+                    onValueChange = { v ->
+                        volume = v.toInt()
+                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, volume, 0)
+                    },
+                    increaseIcon = { Icon(InlineSliderDefaults.Increase, "Increase") },
+                    decreaseIcon = { Icon(InlineSliderDefaults.Decrease, "Decrease") },
+                    steps = maxVolume,
+                    segmented = false
+                )
+            }
+        }
+
+        LaunchedEffect(showVolumeSlider) {
+            if (showVolumeSlider) {
+                delay(5000)  // Wait for 5 seconds
+                showVolumeSlider = false  // Show Button A after 5 seconds
+            }
+        }
     }
 
     @Preview(device = WearDevices.LARGE_ROUND)

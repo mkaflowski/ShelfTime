@@ -1,17 +1,14 @@
 package kaf.audiobookshelfwearos.app.services
 
-import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Binder
 import android.os.IBinder
 import androidx.annotation.OptIn
-import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.media3.common.MediaItem
@@ -296,9 +293,10 @@ class PlayerService : MediaSessionService() {
     }
 
     private fun getCurrentTotalPositionInS(): Double {
+        if (audiobook.media.tracks.isEmpty())
+            return 0.0
         val track = audiobook.media.tracks[exoPlayer.currentMediaItemIndex]
-        val timeInS = track.startOffset + exoPlayer.currentPosition / 1000
-        return timeInS
+        return track.startOffset + exoPlayer.currentPosition / 1000
     }
 
     // The user dismissed the app from the recent tasks
@@ -424,8 +422,8 @@ class PlayerService : MediaSessionService() {
                         if (time < 0)
                             time = it.userMediaProgress.currentTime
 
-                        if(intent.getStringExtra("action").equals("continue")){
-                            if(audiobook.id.equals(id))
+                        if (intent.getStringExtra("action").equals("continue")) {
+                            if (audiobook.id.equals(id))
                                 return@withContext
                         }
 
@@ -458,7 +456,12 @@ class PlayerService : MediaSessionService() {
     }
 
     companion object {
-        fun setAudiobook(context: Context, item: LibraryItem, time: Double = -1.0, action: String = "default") {
+        fun setAudiobook(
+            context: Context,
+            item: LibraryItem,
+            time: Double = -1.0,
+            action: String = "default"
+        ) {
             val serviceIntent = Intent(context, PlayerService::class.java).apply {
                 putExtra(
                     "id",
