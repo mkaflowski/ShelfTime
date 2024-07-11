@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -56,6 +58,7 @@ import androidx.wear.tooling.preview.devices.WearDevices
 import kaf.audiobookshelfwearos.app.services.PlayerService
 import kotlinx.coroutines.delay
 import timber.log.Timber
+import kotlin.math.roundToInt
 
 
 class PlayerActivity : ComponentActivity() {
@@ -279,35 +282,38 @@ class PlayerActivity : ComponentActivity() {
     @Composable
     private fun BottomLayout(currentPosition: Long, duration: Long) {
         var showVolumeSlider by remember { mutableStateOf(false) }
+        var showSpeedSlider by remember { mutableStateOf(false) }
 
-        if (!showVolumeSlider) Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 14.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "${timeToString(currentPosition / 1000)} / ${timeToString(duration / 1000)}",
-                color = Color.LightGray,
-                fontSize = 11.sp
-            )
-            IconButton(modifier = Modifier
-                .fillMaxHeight()
-                .weight(1f), onClick = {
-                showVolumeSlider = true
-            }) {
-                Icon(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(2.dp),
-                    tint = Color.Gray,
-                    imageVector = Icons.Filled.VolumeUp,
-                    contentDescription = "Volume"
+        if (showSpeedSlider) {
+            Column(
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                var speed by remember {
+                    mutableFloatStateOf(
+                        playerService?.getSpeed() ?: 1f
+                    )
+                }
+                Text(
+                    text = "Speed: ${speed}x",
+                    color = Color.LightGray,
+                    fontSize = 11.sp
+                )
+                InlineSlider(
+                    modifier = Modifier.padding(start = 10.dp, end = 10.dp),
+                    value = speed,
+                    onValueChange = { v ->
+                        speed = (v * 10f).roundToInt() / 10f
+                        playerService?.setSpeed(speed)
+                    },
+                    increaseIcon = { Icon(InlineSliderDefaults.Increase, "Increase") },
+                    decreaseIcon = { Icon(InlineSliderDefaults.Decrease, "Decrease") },
+                    valueRange = 0.5f..2f,
+                    steps = 14,
+                    segmented = false
                 )
             }
-        }
-        else {
+        } else if (showVolumeSlider) {
             val context = LocalContext.current
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
@@ -316,7 +322,10 @@ class PlayerActivity : ComponentActivity() {
             }
             val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
 
-            Column {
+            Column(
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 InlineSlider(
                     modifier = Modifier.padding(10.dp),
                     value = volume.toFloat(),
@@ -330,12 +339,67 @@ class PlayerActivity : ComponentActivity() {
                     segmented = false
                 )
             }
+        } else Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 14.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "${timeToString(currentPosition / 1000)} / ${timeToString(duration / 1000)}",
+                color = Color.LightGray,
+                fontSize = 11.sp
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = 15.dp, end = 15.dp)
+            ) {
+                IconButton(modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(1f), onClick = {
+                    showVolumeSlider = true
+                }) {
+                    Icon(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(2.dp),
+                        tint = Color.Gray,
+                        imageVector = Icons.Filled.VolumeUp,
+                        contentDescription = "Volume"
+                    )
+                }
+                IconButton(modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(1f), onClick = {
+                    showSpeedSlider = true
+                }) {
+                    Icon(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(2.dp),
+                        tint = Color.Gray,
+                        imageVector = Icons.Filled.Speed,
+                        contentDescription = "Speed"
+                    )
+                }
+            }
         }
+
 
         LaunchedEffect(showVolumeSlider) {
             if (showVolumeSlider) {
                 delay(5000)  // Wait for 5 seconds
                 showVolumeSlider = false  // Show Button A after 5 seconds
+            }
+        }
+
+        LaunchedEffect(showSpeedSlider) {
+            if (showSpeedSlider) {
+                delay(5000)  // Wait for 5 seconds
+                showSpeedSlider = false  // Show Button A after 5 seconds
             }
         }
     }

@@ -30,7 +30,6 @@ This is a standalone app for Android Wear OS. This project is made as a side pro
 
 ## TODO
 - [x] Volume control
-- [ ] Next/Previous
-- [ ] Speed control
+- [x] Speed control
 - [ ] Offline covers
 - [ ] Getting unfinished audiobooks

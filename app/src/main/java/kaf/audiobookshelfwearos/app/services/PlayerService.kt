@@ -61,6 +61,7 @@ class PlayerService : MediaSessionService() {
 
     private var audiobook = LibraryItem()
     private lateinit var db: AppDatabase
+    private lateinit var userDataManager: UserDataManager
 
     inner class LocalBinder : Binder() {
         fun getService(): PlayerService = this@PlayerService
@@ -74,6 +75,7 @@ class PlayerService : MediaSessionService() {
     @UnstableApi
     override fun onCreate() {
         super.onCreate()
+        userDataManager = UserDataManager(this)
         createChannel(this)
         notificationManager = NotificationManagerCompat.from(applicationContext)
         db = (applicationContext as MainApp).database
@@ -319,8 +321,6 @@ class PlayerService : MediaSessionService() {
     private fun setAudiobook(audiobook: LibraryItem, userTotalTime: Double) {
         this.audiobook = audiobook
         exoPlayer.clearMediaItems()
-        val userDataManager = UserDataManager(this)
-
 
         //getting chapter by time
         var totalDuration = 0.0
@@ -384,6 +384,7 @@ class PlayerService : MediaSessionService() {
             seekToDefaultPosition(trackIndex)
             seekTo(trackIndex, (userTrackTime.toLong() - START_OFFSET_SECONDS) * 1000)
             prepare()
+            setSpeed(userDataManager.speed)
             playWhenReady = true
         }
     }
@@ -453,6 +454,15 @@ class PlayerService : MediaSessionService() {
         }
         job.cancel()
         super.onDestroy()
+    }
+
+    fun getSpeed(): Float {
+        return exoPlayer.playbackParameters.speed
+    }
+
+    fun setSpeed(speed: Float) {
+        exoPlayer.setPlaybackSpeed(speed)
+        userDataManager.speed = speed
     }
 
     companion object {

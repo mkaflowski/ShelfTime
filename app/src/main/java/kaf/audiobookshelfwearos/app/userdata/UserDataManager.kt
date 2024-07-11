@@ -9,6 +9,7 @@ class UserDataManager(context: Context) {
 
     companion object {
         private const val PREF_NAME = "user_data"
+        private const val KEY_SPEED = "speed"
         private const val KEY_SERVER_ADDRESS = "server_address"
         private const val KEY_LOGIN = "login"
         private const val KEY_PASSWORD = "password"
@@ -48,6 +49,10 @@ class UserDataManager(context: Context) {
     var token: String
         get() = sharedPreferences.getString(KEY_TOKEN, null) ?: ""
         set(value) = sharedPreferences.edit().putString(KEY_TOKEN, value).apply()
+
+    var speed: Float
+        get() = sharedPreferences.getFloat(KEY_SPEED, 1f)
+        set(value) = sharedPreferences.edit().putFloat(KEY_SPEED, value).apply()
 
     var protocol: String
         get() = sharedPreferences.getString(KEY_PROTOCOL, null) ?: "https"
