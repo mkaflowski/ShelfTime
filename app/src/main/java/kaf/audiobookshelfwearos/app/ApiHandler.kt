@@ -8,6 +8,7 @@ import android.widget.Toast
 import com.fasterxml.jackson.core.json.JsonReadFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import kaf.audiobookshelfwearos.BuildConfig
 import kaf.audiobookshelfwearos.app.data.Library
 import kaf.audiobookshelfwearos.app.data.LibraryItem
@@ -80,6 +81,8 @@ class ApiHandler(private val context: Context) {
             } catch (e: SocketTimeoutException) {
                 null
             }catch (e: ConnectException){
+                FirebaseCrashlytics.getInstance().log("Handled cover error")
+                FirebaseCrashlytics.getInstance().recordException(e)
                 showToast(e.message.toString())
                 null
             }
@@ -108,6 +111,8 @@ class ApiHandler(private val context: Context) {
             } catch (e: SocketTimeoutException) {
                 return@withContext null
             }catch (e: Exception){
+                FirebaseCrashlytics.getInstance().log("Handled item error")
+                FirebaseCrashlytics.getInstance().recordException(e)
                 showToast(e.message.toString())
                 null
             }
@@ -236,6 +241,8 @@ class ApiHandler(private val context: Context) {
                     return@withContext User()
                 }
             } catch (e: Exception) {
+                FirebaseCrashlytics.getInstance().log("Handled login error")
+                FirebaseCrashlytics.getInstance().recordException(e)
                 e.printStackTrace()
                 e.message?.let { showToast(it) }
                 return@withContext User()

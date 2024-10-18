@@ -2,6 +2,8 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id ("kotlin-kapt")
+    id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
 }
 
 
@@ -13,8 +15,8 @@ android {
         applicationId = "kaf.audiobookshelfwearos"
         minSdk = 26
         targetSdk = 33
-        versionCode = 8
-        versionName = "1.5"
+        versionCode = 9
+        versionName = "1.6"
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -57,6 +59,7 @@ android {
 
 dependencies {
     implementation("androidx.wear:wear-tooling-preview:1.0.0")
+    implementation("com.google.firebase:firebase-crashlytics:19.2.0")
     val roomVersion = "2.6.1"
     implementation("androidx.room:room-runtime:$roomVersion")
     annotationProcessor("androidx.room:room-compiler:$roomVersion")

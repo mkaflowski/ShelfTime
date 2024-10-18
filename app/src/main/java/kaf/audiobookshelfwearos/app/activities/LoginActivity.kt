@@ -124,7 +124,9 @@ class LoginActivity : ComponentActivity() {
             getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = connectivityManager.activeNetwork ?: return false
         val actNw = connectivityManager.getNetworkCapabilities(network) ?: return false
-        Timber.d("" + actNw.transportInfo)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            Timber.d("" + actNw.transportInfo)
+        }
         return when {
             actNw.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> true
             actNw.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> false
