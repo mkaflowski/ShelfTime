@@ -75,12 +75,12 @@ class ApiHandler(private val context: Context) {
 
             try {
                 client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) showToast(response.code.toString())
+                    if (!response.isSuccessful) Timber.d("code: " + response.code)
                     return@use BitmapFactory.decodeStream(response.body!!.byteStream())
                 }
             } catch (e: SocketTimeoutException) {
                 null
-            }catch (e: ConnectException){
+            } catch (e: ConnectException) {
                 FirebaseCrashlytics.getInstance().log("Handled cover error")
                 FirebaseCrashlytics.getInstance().recordException(e)
                 showToast(e.message.toString())
@@ -110,7 +110,7 @@ class ApiHandler(private val context: Context) {
                 }
             } catch (e: SocketTimeoutException) {
                 return@withContext null
-            }catch (e: Exception){
+            } catch (e: Exception) {
                 FirebaseCrashlytics.getInstance().log("Handled item error")
                 FirebaseCrashlytics.getInstance().recordException(e)
                 showToast(e.message.toString())

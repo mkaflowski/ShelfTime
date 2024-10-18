@@ -4,10 +4,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Metadata(
-    var title: String = "",
+    var title: String? = "",
     val titleIgnorePrefix: String? = "",
     val subtitle: String? = "",
-    var authorName: String = "",
+    var authorName: String? = "",
     val narratorName: String? = "",
     val seriesName: String? = "",
     val genres: List<String> = emptyList(),

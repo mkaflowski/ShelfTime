@@ -36,13 +36,16 @@ data class LibraryItem(
     val progressLastUpdate: Long = 0
 ) {
     var title: String
-        get() = media.metadata.title
+        get() = media.metadata.title ?: "Unknown Title"
         set(value) {
             media.metadata.title = value
         }
+
     var author: String
-        get() = media.metadata.authorName
+        get() = media.metadata.authorName ?: "Unknown Author"
         set(value) {
-            media.metadata.authorName = value
+            if (value != null) {
+                media.metadata.authorName = value
+            }
         }
 }
