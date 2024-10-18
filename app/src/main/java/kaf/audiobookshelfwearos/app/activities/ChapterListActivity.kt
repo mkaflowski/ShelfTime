@@ -139,7 +139,7 @@ class ChapterListActivity : ComponentActivity() {
 
                             itemsIndexed(media.chapters) { index, _ ->
                                 Chapter(this@run, media.chapters[index])
-                                if (index != media.chapters.size - 1) {
+                                if (index != media.chapters.size) {
                                     Divider()
                                 }
                             }
@@ -237,8 +237,8 @@ class ChapterListActivity : ComponentActivity() {
                     viewModel.sync(libraryItem)
                 }) {
                     Icon(
-                        tint = if (!libraryItem.userMediaProgress.toUpload || isSyncing) Color.Gray else Color.Yellow,
-                        imageVector = if (isSyncing) Icons.Outlined.CloudSync else if (libraryItem.userMediaProgress.toUpload) Icons.Outlined.CloudUpload else Icons.Filled.Done,
+                        tint = if (!libraryItem.userProgress.toUpload || isSyncing) Color.Gray else Color.Yellow,
+                        imageVector = if (isSyncing) Icons.Outlined.CloudSync else if (libraryItem.userProgress.toUpload) Icons.Outlined.CloudUpload else Icons.Filled.Done,
                         contentDescription = "Sync"
                     )
                 }
@@ -259,7 +259,7 @@ class ChapterListActivity : ComponentActivity() {
 
     @Composable
     fun PlayButton(item: LibraryItem) {
-        val buttonText = if (item.userMediaProgress.currentTime > 10) "Continue" else "Start"
+        val buttonText = if (item.userProgress.currentTime > 10) "Continue" else "Start"
 
         Button(
             onClick = {
@@ -385,8 +385,8 @@ class ChapterListActivity : ComponentActivity() {
             Text(
                 text = timeToString(track.start),
                 fontSize = 10.sp,
-                color = if (track.start > audiobook.userMediaProgress.currentTime) Color.Green else
-                    if (track.end > audiobook.userMediaProgress.currentTime) Color.Cyan else Color.Gray,
+                color = if (track.start > audiobook.userProgress.currentTime) Color.Green else
+                    if (track.end > audiobook.userProgress.currentTime) Color.Cyan else Color.Gray,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .padding(start = 10.dp, end = 10.dp)

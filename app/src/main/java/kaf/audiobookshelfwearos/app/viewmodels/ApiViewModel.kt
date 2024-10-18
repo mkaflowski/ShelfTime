@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.net.SocketTimeoutException
 
 class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
     private val _loginResult = MutableLiveData<User>()
@@ -81,12 +80,12 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
 
             val item = apiHandler.getItem(itemId)
             item?.let {
-                if (libraryItem == null || libraryItem.userMediaProgress.lastUpdate <= item.userMediaProgress.lastUpdate) {
+                if (libraryItem == null || libraryItem.userProgress.lastUpdate <= item.userProgress.lastUpdate) {
                     Timber.d("Post server version")
                     libraryItem?.let {
-                        if (libraryItem.userMediaProgress.lastUpdate >= item.userMediaProgress.lastUpdate) {
+                        if (libraryItem.userProgress.lastUpdate >= item.userProgress.lastUpdate) {
                             Timber.d("Local progress is newer or the same")
-                            item.userMediaProgress = libraryItem.userMediaProgress
+                            item.userProgress = libraryItem.userProgress
                         }
                     }
                     _isLoading.value = false
@@ -100,8 +99,8 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
         _isSyncing.value = true
         viewModelScope.launch {
             val newItem =
-                item.copy(userMediaProgress = item.userMediaProgress.copy(toUpload = !item.userMediaProgress.toUpload))
-            val updated = apiHandler.updateProgress(newItem.userMediaProgress)
+                item.copy(userMediaProgress = item.userProgress.copy(toUpload = !item.userProgress.toUpload))
+            val updated = apiHandler.updateProgress(newItem.userProgress)
             if (updated) {
                 _item.postValue(newItem)
             }

@@ -18,7 +18,7 @@ class MainApp : Application() {
         database = Room.databaseBuilder(
             applicationContext,
             AppDatabase::class.java, "library-item-db"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 
     internal class LineNumberDebugTree : Timber.DebugTree()

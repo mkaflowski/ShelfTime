@@ -23,7 +23,7 @@ interface LibraryItemDao {
 
     suspend fun insertLibraryItem(libraryItem: LibraryItem) {
         val existingItem = getLibraryItemById(libraryItem.id)
-        if (existingItem == null || existingItem.userMediaProgress.lastUpdate <= libraryItem.userMediaProgress.lastUpdate) {
+        if (existingItem == null || existingItem.userProgress.lastUpdate <= libraryItem.userProgress.lastUpdate) {
             insertLibraryItemInternal(libraryItem)
         }
     }

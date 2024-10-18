@@ -255,20 +255,20 @@ class PlayerService : MediaSessionService() {
 
     private fun saveProgress() {
         Timber.d("getCurrentTotalPositionInS " + getCurrentTotalPositionInS())
-        Timber.d("progress " + audiobook.userMediaProgress.progress)
-        Timber.d("duration " + audiobook.userMediaProgress.duration)
-        Timber.d("episodeId " + audiobook.userMediaProgress.episodeId)
-        Timber.d("id " + audiobook.userMediaProgress.id)
-        Timber.d("currentTime " + audiobook.userMediaProgress.currentTime)
-        Timber.d("lastUpdate " + audiobook.userMediaProgress.lastUpdate)
+        Timber.d("progress " + audiobook.userProgress.progress)
+        Timber.d("duration " + audiobook.userProgress.duration)
+        Timber.d("episodeId " + audiobook.userProgress.episodeId)
+        Timber.d("id " + audiobook.userProgress.id)
+        Timber.d("currentTime " + audiobook.userProgress.currentTime)
+        Timber.d("lastUpdate " + audiobook.userProgress.lastUpdate)
 
-        audiobook.userMediaProgress.lastUpdate = System.currentTimeMillis()
-        audiobook.userMediaProgress.currentTime = getCurrentTotalPositionInS()
-        audiobook.userMediaProgress.toUpload = true
-        audiobook.userMediaProgress.libraryItemId = audiobook.id
+        audiobook.userProgress.lastUpdate = System.currentTimeMillis()
+        audiobook.userProgress.currentTime = getCurrentTotalPositionInS()
+        audiobook.userProgress.toUpload = true
+        audiobook.userProgress.libraryItemId = audiobook.id
         scope.launch(Dispatchers.IO) {
             db.libraryItemDao().insertLibraryItem(audiobook)
-            ApiHandler(this@PlayerService).updateProgress(audiobook.userMediaProgress)
+            ApiHandler(this@PlayerService).updateProgress(audiobook.userProgress)
         }
     }
 
@@ -421,7 +421,7 @@ class PlayerService : MediaSessionService() {
                     withContext(Dispatchers.Main) {
                         var time = intent.getDoubleExtra("time", -1.0)
                         if (time < 0)
-                            time = it.userMediaProgress.currentTime
+                            time = it.userProgress.currentTime
 
                         if (intent.getStringExtra("action").equals("continue")) {
                             if (audiobook.id.equals(id))

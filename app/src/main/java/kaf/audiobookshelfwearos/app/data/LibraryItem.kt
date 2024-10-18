@@ -2,8 +2,6 @@ package kaf.audiobookshelfwearos.app.data
 
 import androidx.room.Embedded
 import androidx.room.Entity
-import androidx.room.ForeignKey
-import androidx.room.Ignore
 import androidx.room.PrimaryKey
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 
@@ -31,10 +29,16 @@ data class LibraryItem(
     val size: Long = 0,
     val collapsedSeries: CollapsedSeries = CollapsedSeries(),
     @Embedded(prefix = "progress_")
-    var userMediaProgress: UserMediaProgress = UserMediaProgress(),
+    var userMediaProgress: UserMediaProgress? = null,
     val userMediaProgressId: String? = null,
     val progressLastUpdate: Long = 0
 ) {
+    var userProgress: UserMediaProgress
+        get() = userMediaProgress ?: UserMediaProgress()
+        set(value) {
+            userMediaProgress = value
+        }
+
     var title: String
         get() = media.metadata.title ?: "Unknown Title"
         set(value) {
@@ -44,8 +48,6 @@ data class LibraryItem(
     var author: String
         get() = media.metadata.authorName ?: "Unknown Author"
         set(value) {
-            if (value != null) {
-                media.metadata.authorName = value
-            }
+            media.metadata.authorName = value
         }
 }

@@ -17,7 +17,6 @@ import kaf.audiobookshelfwearos.app.data.UserMediaProgress
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -92,6 +91,7 @@ class ApiHandler(private val context: Context) {
     suspend fun getItem(id: String): LibraryItem? {
         return withContext(Dispatchers.IO) {
             val request = getRequest("/api/items/$id?expanded=1&include=progress")
+            Timber.d("request = "+request)
             try {
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
@@ -102,8 +102,8 @@ class ApiHandler(private val context: Context) {
                     val libraryItem = jacksonMapper.readValue<LibraryItem>(responseBody.toString())
                     val localLibraryItem = db.libraryItemDao().getLibraryItemById(id)
                     localLibraryItem?.let {
-                        if (it.userMediaProgress.lastUpdate > libraryItem.userMediaProgress.lastUpdate) libraryItem.userMediaProgress =
-                            localLibraryItem.userMediaProgress
+                        if (it.userProgress.lastUpdate > libraryItem.userProgress.lastUpdate) libraryItem.userProgress =
+                            localLibraryItem.userProgress
                     }
 
                     return@use libraryItem
@@ -111,6 +111,7 @@ class ApiHandler(private val context: Context) {
             } catch (e: SocketTimeoutException) {
                 return@withContext null
             } catch (e: Exception) {
+                e.printStackTrace()
                 FirebaseCrashlytics.getInstance().log("Handled item error")
                 FirebaseCrashlytics.getInstance().recordException(e)
                 showToast(e.message.toString())
@@ -150,7 +151,7 @@ class ApiHandler(private val context: Context) {
                 val serverItem = getItem(userMediaProgress.libraryItemId)
 
                 serverItem?.let {
-                    if (serverItem.userMediaProgress.lastUpdate > userMediaProgress.lastUpdate) {
+                    if (serverItem.userProgress.lastUpdate > userMediaProgress.lastUpdate) {
                         Timber.d("Progress on server is more recent. Not uploading")
                         userMediaProgress.toUpload = false
                         insertLibraryItemToDB(userMediaProgress)
@@ -200,7 +201,7 @@ class ApiHandler(private val context: Context) {
 
     private suspend fun insertLibraryItemToDB(userMediaProgress: UserMediaProgress) {
         db.libraryItemDao().getLibraryItemById(userMediaProgress.libraryItemId)?.let {
-            it.userMediaProgress = userMediaProgress
+            it.userProgress = userMediaProgress
             db.libraryItemDao().insertLibraryItem(it)
         }
     }
@@ -241,8 +242,6 @@ class ApiHandler(private val context: Context) {
                     return@withContext User()
                 }
             } catch (e: Exception) {
-                FirebaseCrashlytics.getInstance().log("Handled login error")
-                FirebaseCrashlytics.getInstance().recordException(e)
                 e.printStackTrace()
                 e.message?.let { showToast(it) }
                 return@withContext User()
