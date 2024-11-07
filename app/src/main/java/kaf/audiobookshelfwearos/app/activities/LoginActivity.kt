@@ -20,6 +20,7 @@ import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import kaf.audiobookshelfwearos.app.viewmodels.ApiViewModel
 import kaf.audiobookshelfwearos.databinding.ActivityLoginBinding
 import timber.log.Timber
+import java.net.UnknownHostException
 import kotlin.reflect.KMutableProperty1
 
 
@@ -56,8 +57,6 @@ class LoginActivity : ComponentActivity() {
 
         super.onCreate(savedInstanceState)
         setTheme(android.R.style.Theme_DeviceDefault)
-
-
 
         userDataManager = UserDataManager(this)
         if (userDataManager.token.isNotEmpty()) {
@@ -105,17 +104,17 @@ class LoginActivity : ComponentActivity() {
 
         loginButton.setOnClickListener {
             Timber.d("Login clicked")
+            Timber.d("isInternetAvailable() = " + isInternetAvailable())
             if (userDataManager.token.isNotEmpty() && !isInternetAvailable()) {
                 startActivity(Intent(this, BookListActivity::class.java))
                 startActivity(intent)
-            }
-
-            viewModel.login()
+            } else
+                viewModel.login()
         }
 
         if (Build.VERSION.SDK_INT >= 33) {
             if (!shouldShowRequestPermissionRationale(Manifest.permission.LOCATION_HARDWARE))
-        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
     }
 

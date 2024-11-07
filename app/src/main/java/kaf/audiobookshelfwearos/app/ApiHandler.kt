@@ -27,6 +27,7 @@ import org.json.JSONObject
 import timber.log.Timber
 import java.net.ConnectException
 import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 
 
@@ -61,6 +62,10 @@ class ApiHandler(private val context: Context) {
                     return@use jacksonMapper.readValue(libraries.toString())
                 }
             } catch (e: SocketTimeoutException) {
+                e.printStackTrace()
+                return@withContext listOf()
+            } catch (e: Exception) {
+                e.printStackTrace()
                 return@withContext listOf()
             }
 
@@ -71,18 +76,23 @@ class ApiHandler(private val context: Context) {
     suspend fun getCover(id: String): Bitmap? {
         return withContext(Dispatchers.IO) {
             val request = getRequest("/api/items/$id/cover")
-
             try {
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) Timber.d("code: " + response.code)
                     return@use BitmapFactory.decodeStream(response.body!!.byteStream())
                 }
             } catch (e: SocketTimeoutException) {
+                e.printStackTrace()
                 null
             } catch (e: ConnectException) {
+                e.printStackTrace()
                 FirebaseCrashlytics.getInstance().log("Handled cover error")
                 FirebaseCrashlytics.getInstance().recordException(e)
                 showToast(e.message.toString())
+                null
+            }
+            catch(e : Exception){
+                e.printStackTrace()
                 null
             }
         }
@@ -91,7 +101,7 @@ class ApiHandler(private val context: Context) {
     suspend fun getItem(id: String): LibraryItem? {
         return withContext(Dispatchers.IO) {
             val request = getRequest("/api/items/$id?expanded=1&include=progress")
-            Timber.d("request = "+request)
+            Timber.d("request = " + request)
             try {
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {

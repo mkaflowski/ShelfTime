@@ -158,6 +158,7 @@ class BookListActivity : ComponentActivity() {
                     for ((libIndex, library) in libraries.withIndex()) {
                         itemsIndexed(library.libraryItems) { index, item ->
                             Column {
+                                Timber.d(item.title)
                                 BookItem(item)
                                 val showDivider =
                                     (index != library.libraryItems.size - 1 || libIndex != libraries.size - 1)
