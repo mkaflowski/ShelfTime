@@ -2,6 +2,7 @@ package kaf.audiobookshelfwearos.app.activities
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -85,6 +86,9 @@ class ChapterListActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Keep the screen on while this activity is in the foreground
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
         viewModel.loginResult.observe(
             this
         ) { user ->
@@ -166,13 +170,22 @@ class ChapterListActivity : ComponentActivity() {
             )
         }
 
+        var downloadedCount by remember {
+            mutableStateOf(libraryItem.media.tracks.count { track -> track.isDownloaded(this) })
+        }
+        val totalTracks = libraryItem.media.tracks.size
+
+        Timber.d("downloadedCount = $downloadedCount")
 
         LaunchedEffect(isDownloading) {
             while (isDownloading) {
-                delay(1000L)
+                downloadedCount =
+                    libraryItem.media.tracks.count { track -> track.isDownloaded(this@ChapterListActivity) }
+                Timber.d("downloadedCount = $downloadedCount")
                 isDownloading = libraryItem.media.tracks.any { track ->
                     track.isDownloading(this@ChapterListActivity)
                 }
+                delay(1000L)
             }
             isDownloaded =
                 libraryItem.media.tracks.all { track -> track.isDownloaded(this@ChapterListActivity) }
@@ -232,6 +245,12 @@ class ChapterListActivity : ComponentActivity() {
                         contentDescription = if (isDownloaded) "Download" else "Delete"
                     )
                 }
+
+                if (isDownloading)
+                    Column {
+                        Text(text = "Downloading...",fontSize = 8.sp, color = Color.Gray)
+                        Text(text = "$downloadedCount / $totalTracks",fontSize = 10.sp, color = Color.Gray)
+                    }
 
                 IconButton(onClick = {
                     viewModel.sync(libraryItem)

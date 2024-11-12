@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.annotation.OptIn
+import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
 import androidx.media3.database.StandaloneDatabaseProvider
@@ -157,7 +158,7 @@ class MyDownloadService : DownloadService(
                     downloadExecutor
                 )
 
-                downloadManager.maxParallelDownloads = 3
+                downloadManager.maxParallelDownloads = 2
                 downloadManager.addListener(object : DownloadManager.Listener {
                     override fun onInitialized(downloadManager: DownloadManager) {
                         super.onInitialized(downloadManager)
@@ -178,9 +179,18 @@ class MyDownloadService : DownloadService(
                         finalException: Exception?
                     ) {
                         super.onDownloadChanged(downloadManager, download, finalException)
-                        Timber.d("onDownloadChanged ${download.state}")
                         if (download.state == Download.STATE_COMPLETED) {
                             Timber.i("Download completed: " + download.request.id)
+                        }
+
+                        Timber.d("onDownloadChanged ${download.state}")
+                        if (download.percentDownloaded != C.PERCENTAGE_UNSET.toFloat()) {
+                            Timber.d("Download progress: ${download.percentDownloaded}%")
+                        } else {
+                            Timber.d("Download progress: Not available")
+                        }
+                        if (download.state == Download.STATE_COMPLETED) {
+                            Timber.i("Download completed: ${download.request.id}")
                         }
                     }
 
