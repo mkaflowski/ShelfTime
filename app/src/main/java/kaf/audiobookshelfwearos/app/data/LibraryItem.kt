@@ -1,5 +1,6 @@
 package kaf.audiobookshelfwearos.app.data
 
+import android.content.Context
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.PrimaryKey
@@ -33,6 +34,14 @@ data class LibraryItem(
     val userMediaProgressId: String? = null,
     val progressLastUpdate: Long = 0
 ) {
+    fun isDownloaded(context: Context): Boolean {
+        for (track in media.tracks) {
+            if(!track.isDownloaded(context))
+                return false
+        }
+        return true
+    }
+
     var userProgress: UserMediaProgress
         get() = userMediaProgress ?: UserMediaProgress()
         set(value) {

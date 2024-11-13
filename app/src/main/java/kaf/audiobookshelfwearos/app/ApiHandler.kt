@@ -41,6 +41,8 @@ class ApiHandler(private val context: Context) {
     private val userDataManager = UserDataManager(context)
     private val db = (context.applicationContext as MainApp).database
 
+    var shouldShowErrorToast = true
+
     private fun getRequest(endPoint: String) =
         Request.Builder().url(userDataManager.getCompleteAddress() + endPoint)
             .addHeader("Authorization", "Bearer ${userDataManager.token}").build()
@@ -90,8 +92,7 @@ class ApiHandler(private val context: Context) {
                 FirebaseCrashlytics.getInstance().recordException(e)
                 showToast(e.message.toString())
                 null
-            }
-            catch(e : Exception){
+            } catch (e: Exception) {
                 e.printStackTrace()
                 null
             }
@@ -260,10 +261,11 @@ class ApiHandler(private val context: Context) {
     }
 
     private fun showToast(text: String) {
-        if (context is Activity) context.runOnUiThread {
-            Toast.makeText(
-                context, text, Toast.LENGTH_SHORT
-            ).show()
-        }
+        if (shouldShowErrorToast)
+            if (context is Activity) context.runOnUiThread {
+                Toast.makeText(
+                    context, text, Toast.LENGTH_SHORT
+                ).show()
+            }
     }
 }

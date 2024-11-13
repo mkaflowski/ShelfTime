@@ -47,6 +47,7 @@ import kaf.audiobookshelfwearos.R
 import kaf.audiobookshelfwearos.app.ApiHandler
 import kaf.audiobookshelfwearos.app.data.Library
 import kaf.audiobookshelfwearos.app.data.LibraryItem
+import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import kaf.audiobookshelfwearos.app.viewmodels.ApiViewModel
 import timber.log.Timber
 
@@ -71,7 +72,7 @@ class BookListActivity : ComponentActivity() {
             Timber.d(user.token)
         }
 
-        viewModel.getLibraries(this, true)
+        viewModel.getLibraries(this, true, UserDataManager(this).offlineMode)
 
         setContent {
             val libraries by viewModel.libraries.observeAsState()
@@ -125,7 +126,7 @@ class BookListActivity : ComponentActivity() {
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     Button(onClick = {
-                        viewModel.getLibraries(this@BookListActivity, true)
+                        viewModel.getLibraries(this@BookListActivity, true, UserDataManager(this@BookListActivity).offlineMode)
                     }) {
                         Text(text = "LOAD")
                     }
@@ -214,7 +215,7 @@ class BookListActivity : ComponentActivity() {
     @Composable
     private fun CoverImage(itemId: String) {
         val coverUrls by viewModel.coverImages.observeAsState()
-        viewModel.getCoverImage(itemId)
+        viewModel.getCoverImage(itemId, this)
 
         AsyncImage(
             model = coverUrls?.get(itemId) ?: "",

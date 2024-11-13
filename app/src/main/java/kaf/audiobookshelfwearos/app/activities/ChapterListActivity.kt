@@ -65,6 +65,7 @@ import kaf.audiobookshelfwearos.app.data.Chapter
 import kaf.audiobookshelfwearos.app.data.LibraryItem
 import kaf.audiobookshelfwearos.app.services.MyDownloadService
 import kaf.audiobookshelfwearos.app.services.PlayerService
+import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import kaf.audiobookshelfwearos.app.viewmodels.ApiViewModel
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
@@ -83,8 +84,13 @@ class ChapterListActivity : ComponentActivity() {
         )
     }
 
+    private var isOnlineMode: Boolean = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        isOnlineMode = !UserDataManager(this).offlineMode
+        viewModel.setShowErrorTaosts(isOnlineMode)
 
         // Keep the screen on while this activity is in the foreground
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -175,13 +181,10 @@ class ChapterListActivity : ComponentActivity() {
         }
         val totalTracks = libraryItem.media.tracks.size
 
-        Timber.d("downloadedCount = $downloadedCount")
-
         LaunchedEffect(isDownloading) {
             while (isDownloading) {
                 downloadedCount =
                     libraryItem.media.tracks.count { track -> track.isDownloaded(this@ChapterListActivity) }
-                Timber.d("downloadedCount = $downloadedCount")
                 isDownloading = libraryItem.media.tracks.any { track ->
                     track.isDownloading(this@ChapterListActivity)
                 }

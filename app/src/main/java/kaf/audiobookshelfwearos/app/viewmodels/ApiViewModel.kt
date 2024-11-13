@@ -2,6 +2,7 @@ package kaf.audiobookshelfwearos.app.viewmodels
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -20,6 +21,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 
 class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
     private val _loginResult = MutableLiveData<User>()
@@ -48,7 +52,11 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
         }
     }
 
-    fun getCoverImage(itemId: String) {
+    fun setShowErrorTaosts(show: Boolean) {
+        apiHandler.shouldShowErrorToast = show
+    }
+
+    fun getCoverImage(itemId: String, context: Context) {
         val currentImages = _coverImages.value ?: mapOf()
 
         if (currentImages.containsKey(itemId)) {
@@ -56,15 +64,48 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
             return  // If the image is already loaded, do nothing.
         }
 
+        val cachedCover = loadBitmapFromCache(context,itemId)
+        if(cachedCover!=null){
+            val updatedImages = currentImages.toMutableMap()
+            updatedImages[itemId] = cachedCover
+            _coverImages.postValue(updatedImages)
+            return
+        }
+
         viewModelScope.launch {
             val bitmap = apiHandler.getCover(itemId)
             bitmap?.let {
                 // Post new state with updated image.
+                saveBitmapToCache(context, bitmap, itemId)
                 val updatedImages = currentImages.toMutableMap()
                 updatedImages[itemId] = it
                 _coverImages.postValue(updatedImages)
             }
         }
+    }
+
+    private fun loadBitmapFromCache(context: Context, filename: String): Bitmap? {
+        val file = File(context.cacheDir, "$filename.jpg")
+        return if (file.exists()) {
+            BitmapFactory.decodeFile(file.absolutePath)
+        } else {
+            null
+        }
+    }
+
+    private fun saveBitmapToCache(context: Context, bitmap: Bitmap, filename: String): File? {
+        val cacheDir = context.cacheDir
+        val file = File(cacheDir, "$filename.jpg")
+
+        try {
+            FileOutputStream(file).use { fos ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos)
+            }
+        } catch (e: IOException) {
+            e.printStackTrace()
+            return null
+        }
+        return file
     }
 
 
@@ -108,21 +149,28 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
         }
     }
 
-    fun getLibraries(context: Context? = null, includeLocalProgress: Boolean = true) {
+    fun getLibraries(
+        context: Context,
+        includeLocalProgress: Boolean = true,
+        onlyDownloaded: Boolean = false
+    ) {
         _isLoading.value = true
         viewModelScope.launch {
             var localItems = listOf<LibraryItem>()
             var allLibraries = arrayListOf<Library>()
-            if (includeLocalProgress && context != null) {
+            if (includeLocalProgress) {
                 val db = (context.applicationContext as MainApp).database
                 localItems = db.libraryItemDao().getAllLibraryItems()
                 val localLibrary = Library(libraryItems = localItems.toCollection(ArrayList()))
+                if (onlyDownloaded) {
+                    localLibrary.libraryItems.retainAll { it.isDownloaded(context) }
+                }
                 allLibraries.add(localLibrary)
                 _libraries.postValue(listOf(localLibrary))
                 _isLoading.value = false
             }
 
-            val res = loadLibraries()
+            val res = loadLibraries(onlyDownloaded, context)
             for (library in res) {
                 library.libraryItems.removeAll { item2 -> localItems.any { item1 -> item1.id == item2.id } }
                 allLibraries.add(library)
@@ -132,13 +180,18 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
         }
     }
 
-    private suspend fun loadLibraries() = coroutineScope {
+    private suspend fun loadLibraries(onlyDownloaded: Boolean, context: Context) = coroutineScope {
         val libraries = apiHandler.getAllLibraries()
+        Timber.d("onlyDownloaded $onlyDownloaded")
 
         val deferredLibraries = libraries.map { library ->
             async {
+                Timber.d("onlyDownloaded $onlyDownloaded")
                 val libraryItems = apiHandler.getLibraryItems(library.id)
-                library.libraryItems.addAll(libraryItems)
+                val filteredItems = if (onlyDownloaded) {
+                    libraryItems.filter { it.isDownloaded(context) }
+                } else libraryItems
+                library.libraryItems.addAll(filteredItems)
                 library
             }
         }

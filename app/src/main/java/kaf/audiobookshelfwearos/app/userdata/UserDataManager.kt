@@ -16,6 +16,7 @@ class UserDataManager(context: Context) {
         private const val KEY_PROTOCOL = "protocol"
         private const val KEY_TOKEN = "token"
         private const val KEY_USERID = "userid"
+        private const val KEY_OFFLINEMODE = "offlinemode"
     }
 
     private val masterKey = MasterKey.Builder(context)
@@ -57,6 +58,10 @@ class UserDataManager(context: Context) {
     var protocol: String
         get() = sharedPreferences.getString(KEY_PROTOCOL, null) ?: "https"
         set(value) = sharedPreferences.edit().putString(KEY_PROTOCOL, value).apply()
+
+    var offlineMode: Boolean
+        get() = sharedPreferences.getBoolean(KEY_OFFLINEMODE, false)
+        set(value) = sharedPreferences.edit().putBoolean(KEY_OFFLINEMODE, value).apply()
 
     fun clearUserData() {
         sharedPreferences.edit().clear().apply()

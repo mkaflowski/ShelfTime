@@ -10,6 +10,8 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.widget.Button
+import android.widget.CheckBox
+import android.widget.CompoundButton
 import android.widget.EditText
 import androidx.activity.ComponentActivity
 import androidx.activity.viewModels
@@ -33,6 +35,7 @@ class LoginActivity : ComponentActivity() {
     private lateinit var password: EditText
     private lateinit var loginButton: Button
     private lateinit var userDataManager: UserDataManager
+    private lateinit var offlineModeCheckBox: CheckBox
 
     private val viewModel: ApiViewModel by viewModels {
         ApiViewModel.ApiViewModelFactory(
@@ -59,6 +62,8 @@ class LoginActivity : ComponentActivity() {
         setTheme(android.R.style.Theme_DeviceDefault)
 
         userDataManager = UserDataManager(this)
+        viewModel.setShowErrorTaosts(!userDataManager.offlineMode)
+
         if (userDataManager.token.isNotEmpty()) {
             viewModel.login()
         }
@@ -71,6 +76,7 @@ class LoginActivity : ComponentActivity() {
         login = findViewById(R.id.login)
         password = findViewById(R.id.password)
         loginButton = findViewById(R.id.buttonLogin)
+        offlineModeCheckBox = findViewById(R.id.offlinemode)
 
         setSavedValues()
 
@@ -93,6 +99,11 @@ class LoginActivity : ComponentActivity() {
             })
         }
 
+        offlineModeCheckBox.isChecked = userDataManager.offlineMode
+        offlineModeCheckBox.setOnCheckedChangeListener { _, isChecked ->
+            userDataManager.offlineMode = isChecked
+        }
+
         viewModel.loginResult.observe(
             this
         ) { user ->
@@ -108,17 +119,20 @@ class LoginActivity : ComponentActivity() {
             if (userDataManager.token.isNotEmpty() && !isInternetAvailable()) {
                 startActivity(Intent(this, BookListActivity::class.java))
                 startActivity(intent)
-            } else
-                viewModel.login()
+            } else viewModel.login()
         }
 
         if (Build.VERSION.SDK_INT >= 33) {
-            if (!shouldShowRequestPermissionRationale(Manifest.permission.LOCATION_HARDWARE))
-                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+            if (!shouldShowRequestPermissionRationale(Manifest.permission.LOCATION_HARDWARE)) requestPermissions(
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                1
+            )
         }
     }
 
     private fun isInternetAvailable(): Boolean {
+        if (userDataManager.offlineMode)
+            return false
         val connectivityManager =
             getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = connectivityManager.activeNetwork ?: return false
