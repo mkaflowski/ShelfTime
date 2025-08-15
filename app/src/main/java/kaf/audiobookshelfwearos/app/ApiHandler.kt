@@ -17,6 +17,7 @@ import kaf.audiobookshelfwearos.app.data.UserMediaProgress
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -30,6 +31,11 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 
+data class SyncResult(
+    val successCount: Int,
+    val failureCount: Int,
+    val errors: List<String>
+)
 
 class ApiHandler(private val context: Context) {
     private val timeout: Long = if (BuildConfig.DEBUG) 3 else 7
@@ -40,6 +46,10 @@ class ApiHandler(private val context: Context) {
         ObjectMapper().enable(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature())
     private val userDataManager = UserDataManager(context)
     private val db = (context.applicationContext as MainApp).database
+
+    // Retry configuration
+    private val maxRetries = 3
+    private val baseDelayMs = 1000L
 
     var shouldShowErrorToast = true
 
@@ -152,9 +162,10 @@ class ApiHandler(private val context: Context) {
     }
 
     /**
+     * Enhanced updateProgress with retry logic
      * @return Progress is now up to date
      */
-    suspend fun updateProgress(userMediaProgress: UserMediaProgress): Boolean {
+    suspend fun updateProgress(userMediaProgress: UserMediaProgress, retryCount: Int = 0): Boolean {
         return withContext(Dispatchers.IO) {
             try {
                 if (BuildConfig.DEBUG) Thread.sleep(1000)
@@ -169,14 +180,66 @@ class ApiHandler(private val context: Context) {
                         return@withContext true
                     }
 
-                    Timber.d("Uploading progress...")
-                    return@withContext uploadProgress(userMediaProgress)
+                    Timber.d("Uploading progress... (attempt ${retryCount + 1})")
+                    val success = uploadProgress(userMediaProgress)
+                    
+                    if (!success && retryCount < maxRetries) {
+                        val delay = baseDelayMs * (1 shl retryCount) // Exponential backoff
+                        Timber.d("Upload failed, retrying in ${delay}ms")
+                        delay(delay)
+                        return@withContext updateProgress(userMediaProgress, retryCount + 1)
+                    }
+                    
+                    return@withContext success
                 }
             } catch (e: Exception) {
-                Timber.e(e, "Failed to update progress")
+                Timber.e(e, "Failed to update progress (attempt ${retryCount + 1})")
+                
+                if (retryCount < maxRetries) {
+                    val delay = baseDelayMs * (1 shl retryCount)
+                    delay(delay)
+                    return@withContext updateProgress(userMediaProgress, retryCount + 1)
+                }
             }
 
             return@withContext false
+        }
+    }
+
+    /**
+     * Batch sync all pending progress items
+     */
+    suspend fun syncAllPendingProgress(): SyncResult {
+        return withContext(Dispatchers.IO) {
+            val pendingItems = db.libraryItemDao().getItemsWithPendingSync()
+            var successCount = 0
+            var failureCount = 0
+            val errors = mutableListOf<String>()
+            
+            Timber.d("Starting batch sync of ${pendingItems.size} pending items")
+            
+            for (item in pendingItems) {
+                try {
+                    val success = updateProgress(item.userProgress)
+                    if (success) {
+                        successCount++
+                        // Mark as synced in database
+                        db.libraryItemDao().markProgressAsSynced(item.id)
+                        Timber.d("Successfully synced progress for: ${item.title}")
+                    } else {
+                        failureCount++
+                        errors.add("Failed to sync ${item.title}")
+                        Timber.w("Failed to sync progress for: ${item.title}")
+                    }
+                } catch (e: Exception) {
+                    failureCount++
+                    errors.add("Error syncing ${item.title}: ${e.message}")
+                    Timber.e(e, "Error syncing progress for: ${item.title}")
+                }
+            }
+            
+            Timber.d("Batch sync completed: $successCount successful, $failureCount failed")
+            SyncResult(successCount, failureCount, errors)
         }
     }
 

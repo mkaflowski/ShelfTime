@@ -34,6 +34,7 @@ import kaf.audiobookshelfwearos.app.data.Chapter
 import kaf.audiobookshelfwearos.app.data.LibraryItem
 import kaf.audiobookshelfwearos.app.data.room.AppDatabase
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
+import kaf.audiobookshelfwearos.app.utils.NetworkConnectivityManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -41,6 +42,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.util.Timer
+import java.util.TimerTask
+import kotlin.math.abs
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 
 class PlayerService : MediaSessionService() {
@@ -63,6 +69,12 @@ class PlayerService : MediaSessionService() {
     private lateinit var db: AppDatabase
     private lateinit var userDataManager: UserDataManager
 
+    // New fields for periodic progress saving and network monitoring
+    private var progressSaveTimer: Timer? = null
+    private val PROGRESS_SAVE_INTERVAL = 30000L // 30 seconds
+    private lateinit var networkConnectivityManager: NetworkConnectivityManager
+    private var lastSavedPosition: Double = 0.0
+
     inner class LocalBinder : Binder() {
         fun getService(): PlayerService = this@PlayerService
     }
@@ -79,6 +91,15 @@ class PlayerService : MediaSessionService() {
         createChannel(this)
         notificationManager = NotificationManagerCompat.from(applicationContext)
         db = (applicationContext as MainApp).database
+        
+        // Initialize network connectivity monitoring
+        networkConnectivityManager = NetworkConnectivityManager(this) {
+            scope.launch { // Ensure syncPendingProgress is launched in a coroutine
+                syncPendingProgress()
+            }
+        }
+        networkConnectivityManager.startMonitoring()
+        
         createPlayer()
         mediaSession = MediaSession.Builder(this, exoPlayer).build()
     }
@@ -239,10 +260,12 @@ class PlayerService : MediaSessionService() {
                 if (isPlaying) {
                     Timber.tag("PlayerService").d("ExoPlayer is playing")
                     playbackStartTime = System.currentTimeMillis()
+                    startPeriodicProgressSaving()
                     sendBroadcast(Intent("$packageName.ACTION_PLAYING"))
                 } else {
                     Timber.tag("PlayerService").d("ExoPlayer is paused")
-                    saveProgress()
+                    stopPeriodicProgressSaving()
+                    saveProgress() // Final save on pause
                     sendBroadcast(Intent("$packageName.ACTION_PAUSE"))
                     val currentTime = System.currentTimeMillis()
                     totalPlaybackTime += currentTime - playbackStartTime
@@ -253,7 +276,11 @@ class PlayerService : MediaSessionService() {
         })
     }
 
-    private fun saveProgress() {
+    // Enhanced saveProgress method with periodic flag
+    private fun saveProgress(isPeriodicSave: Boolean = false) {
+        val currentPosition = getCurrentTotalPositionInS()
+        Timber.d("Saving progress - periodic: $isPeriodicSave, position: $currentPosition")
+        
         Timber.d("getCurrentTotalPositionInS " + getCurrentTotalPositionInS())
         Timber.d("progress " + audiobook.userProgress.progress)
         Timber.d("duration " + audiobook.userProgress.duration)
@@ -263,12 +290,95 @@ class PlayerService : MediaSessionService() {
         Timber.d("lastUpdate " + audiobook.userProgress.lastUpdate)
 
         audiobook.userProgress.lastUpdate = System.currentTimeMillis()
-        audiobook.userProgress.currentTime = getCurrentTotalPositionInS()
+        audiobook.userProgress.currentTime = currentPosition
         audiobook.userProgress.toUpload = true
         audiobook.userProgress.libraryItemId = audiobook.id
+        
         scope.launch(Dispatchers.IO) {
-            db.libraryItemDao().insertLibraryItem(audiobook)
-            ApiHandler(this@PlayerService).updateProgress(audiobook.userProgress)
+            try {
+                db.libraryItemDao().insertLibraryItem(audiobook)
+                
+                // Attempt immediate sync based on conditions
+                val shouldAttemptSync = when {
+                    !isPeriodicSave -> true // Always try for manual saves
+                    networkConnectivityManager.isNetworkAvailable() -> true // Try if online
+                    else -> false // Skip for periodic saves when offline
+                }
+                
+                if (shouldAttemptSync) {
+                    val success = ApiHandler(this@PlayerService).updateProgress(audiobook.userProgress)
+                    if (success) {
+                        Timber.d("Progress synced successfully")
+                    } else if (!isPeriodicSave) {
+                        Timber.d("Progress sync failed, will retry when connectivity is restored")
+                    }
+                } else {
+                    Timber.d("Skipping sync attempt - offline periodic save")
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error saving progress")
+            }
+        }
+    }
+
+    // New method: Start periodic saving
+    private fun startPeriodicProgressSaving() {
+        stopPeriodicProgressSaving() // Prevent duplicate timers
+        
+        progressSaveTimer = Timer("ProgressSaveTimer", true).apply {
+            schedule(object : TimerTask() {
+                override fun run() {
+                    // Switch to the main thread to access ExoPlayer
+                    scope.launch(Dispatchers.Main) {
+                        if (exoPlayer.isPlaying) {
+                            val currentPosition = getCurrentTotalPositionInS()
+                            // Only save if position changed significantly (avoid unnecessary writes)
+                            if (abs(currentPosition - lastSavedPosition) > 5.0) { // 5 second threshold
+                                // saveProgress handles DB/network ops using Dispatchers.IO
+                                saveProgress(isPeriodicSave = true)
+                                lastSavedPosition = currentPosition
+                            }
+                        }
+                    }
+                }
+            }, PROGRESS_SAVE_INTERVAL, PROGRESS_SAVE_INTERVAL)
+        }
+        Timber.d("Started periodic progress saving")
+    }
+
+    // New method: Stop periodic saving
+    private fun stopPeriodicProgressSaving() {
+        progressSaveTimer?.cancel()
+        progressSaveTimer = null
+        Timber.d("Stopped periodic progress saving")
+    }
+
+    // New method: Sync pending progress
+    private suspend fun syncPendingProgress() {
+        withContext(Dispatchers.IO) {
+            try {
+                val pendingItems = db.libraryItemDao().getItemsWithPendingSync()
+                Timber.d("Found ${pendingItems.size} items with pending progress sync")
+                
+                var successCount = 0
+                for (item in pendingItems) {
+                    try {
+                        val success = ApiHandler(this@PlayerService).updateProgress(item.userProgress)
+                        if (success) {
+                            successCount++
+                            Timber.d("Successfully synced progress for item: ${item.id}")
+                        }
+                    } catch (e: Exception) {
+                        Timber.e(e, "Failed to sync progress for item: ${item.id}")
+                    }
+                }
+                
+                if (successCount > 0) {
+                    Timber.d("Successfully synced $successCount out of ${pendingItems.size} pending items")
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error during pending progress sync")
+            }
         }
     }
 
@@ -447,10 +557,24 @@ class PlayerService : MediaSessionService() {
 
 
     override fun onDestroy() {
+        stopPeriodicProgressSaving()
+        networkConnectivityManager.stopMonitoring()
+        
+        // Final progress save before destruction
+        if (::exoPlayer.isInitialized && audiobook.id.isNotEmpty()) { // Check if exoPlayer is initialized
+            // Switch to main thread for ExoPlayer access if needed, or ensure saveProgress handles it
+             if (exoPlayer.isPlaying || exoPlayer.playbackState != Player.STATE_IDLE) {
+                saveProgress()
+            }
+        }
+        
         mediaSession?.run {
             player.release()
             release()
             mediaSession = null
+        }
+        if (::exoPlayer.isInitialized) { // Check if exoPlayer is initialized before releasing
+            exoPlayer.release()
         }
         job.cancel()
         super.onDestroy()

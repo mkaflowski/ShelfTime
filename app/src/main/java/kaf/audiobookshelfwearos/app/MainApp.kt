@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.room.Room
 import kaf.audiobookshelfwearos.BuildConfig
 import kaf.audiobookshelfwearos.app.data.room.AppDatabase
+import kaf.audiobookshelfwearos.app.workers.SyncWorker
 import timber.log.Timber
 
 class MainApp : Application() {
@@ -19,6 +20,9 @@ class MainApp : Application() {
             applicationContext,
             AppDatabase::class.java, "library-item-db"
         ).fallbackToDestructiveMigration().build()
+        
+        // Initialize background sync
+        SyncWorker.schedulePeriodicSync(this)
     }
 
     internal class LineNumberDebugTree : Timber.DebugTree()
