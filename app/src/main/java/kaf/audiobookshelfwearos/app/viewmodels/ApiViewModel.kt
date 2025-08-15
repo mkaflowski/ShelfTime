@@ -167,6 +167,12 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
                 }
                 allLibraries.add(localLibrary)
                 _libraries.postValue(listOf(localLibrary))
+                // Update filtered libraries when libraries change
+                if (_searchQuery.value.isBlank()) {
+                    _filteredLibraries.value = listOf(localLibrary)
+                } else {
+                    filterLibraries(_searchQuery.value)
+                }
                 _isLoading.value = false
             }
 
@@ -177,6 +183,12 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
             }
             _isLoading.value = false
             _libraries.postValue(allLibraries)
+            // Update filtered libraries when libraries change
+            if (_searchQuery.value.isBlank()) {
+                _filteredLibraries.value = allLibraries
+            } else {
+                filterLibraries(_searchQuery.value)
+            }
         }
     }
 
@@ -199,7 +211,46 @@ class ApiViewModel(private val apiHandler: ApiHandler) : ViewModel() {
         deferredLibraries.awaitAll()
     }
 
-    class ApiViewModelFactory(private val apiHandler: ApiHandler) :
+    // Search functionality
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery
+
+    private val _isSearchActive = MutableStateFlow(false)
+    val isSearchActive: StateFlow<Boolean> = _isSearchActive
+
+    private val _filteredLibraries = MutableStateFlow<List<Library>>(emptyList())
+    val filteredLibraries: StateFlow<List<Library>> = _filteredLibraries
+
+    fun updateSearchQuery(query: String) {
+        _searchQuery.value = query
+        filterLibraries(query)
+    }
+
+    fun toggleSearch() {
+        _isSearchActive.value = !_isSearchActive.value
+        if (!_isSearchActive.value) {
+            _searchQuery.value = ""
+            _filteredLibraries.value = _libraries.value ?: emptyList()
+        }
+    }
+
+    private fun filterLibraries(query: String) {
+        val currentLibraries = _libraries.value ?: emptyList()
+        if (query.isBlank()) {
+            _filteredLibraries.value = currentLibraries
+            return
+        }
+        
+        val filtered = currentLibraries.map { library ->
+            val filteredItems = library.libraryItems.filter { item ->
+                item.title.contains(query, ignoreCase = true) ||
+                item.author.contains(query, ignoreCase = true)
+            }
+            library.copy(libraryItems = ArrayList(filteredItems))
+        }.filter { it.libraryItems.isNotEmpty() }
+        
+        _filteredLibraries.value = filtered
+    }    class ApiViewModelFactory(private val apiHandler: ApiHandler) :
         ViewModelProvider.NewInstanceFactory() {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return ApiViewModel(apiHandler = apiHandler) as T
