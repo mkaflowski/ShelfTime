@@ -126,23 +126,21 @@ class BookListActivity : ComponentActivity() {
             
             val displayLibraries = if (isSearchActive) filteredLibraries else libraries
             
-            Column(modifier = Modifier.fillMaxSize()) {
-                // Search header at the top
-                SearchHeader(
-                    isSearchActive = isSearchActive,
-                    searchQuery = searchQuery,
-                    onSearchToggle = {
-                        if (!isSearchActive) {
-                            launchRemoteSearchInput(launcher, remoteInputs)
-                        }
-                        viewModel.toggleSearch()
-                    }
-                )
-                
-                // Main content
+            // Main content without fixed header
+            if (!isSearchActive) {
                 ManualLoadView(displayLibraries, isSearchActive)
-                Libraries(displayLibraries)
             }
+            Libraries(
+                displayLibraries, 
+                isSearchActive = isSearchActive,
+                searchQuery = searchQuery,
+                onSearchToggle = {
+                    if (!isSearchActive) {
+                        launchRemoteSearchInput(launcher, remoteInputs)
+                    }
+                    viewModel.toggleSearch()
+                }
+            )
 
         }
     }
@@ -153,45 +151,42 @@ class BookListActivity : ComponentActivity() {
         searchQuery: String,
         onSearchToggle: () -> Unit
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(if (isSearchActive) 72.dp else 48.dp)
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            contentAlignment = Alignment.Center
+                .padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             if (isSearchActive) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                // Back button
+                Button(
+                    onClick = onSearchToggle,
+                    modifier = Modifier.size(40.dp)
                 ) {
-
-                    // Back button centered
-                    Button(
-                        onClick = onSearchToggle,
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-
-                    // Search query display below the button
-                    Text(
-                        text = if (searchQuery.isNotEmpty()) "Search: $searchQuery" else "Enter search...",
-                        style = MaterialTheme.typography.body2,
-                        color = if (searchQuery.isNotEmpty())
-                            MaterialTheme.colors.onSurface
-                        else
-                            MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back"
                     )
                 }
+
+                // Search query display
+                Text(
+                    text = if (searchQuery.isNotEmpty()) "\"$searchQuery\"" else "Enter search...",
+                    style = MaterialTheme.typography.body2,
+                    color = if (searchQuery.isNotEmpty())
+                        MaterialTheme.colors.onSurface
+                    else
+                        MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .padding(horizontal = 16.dp)
+                )
             } else {
-                // Search button centered
+                // Search button
                 Button(
                     onClick = onSearchToggle,
                     modifier = Modifier.size(40.dp)
@@ -261,7 +256,12 @@ class BookListActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun Libraries(libraries: List<Library>?) {
+    private fun Libraries(
+        libraries: List<Library>?,
+        isSearchActive: Boolean = false,
+        searchQuery: String = "",
+        onSearchToggle: () -> Unit = {}
+    ) {
         val scalingLazyListState = rememberScalingLazyListState(0)
 
         Scaffold(
@@ -283,16 +283,47 @@ class BookListActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                libraries?.let {
-                    for ((libIndex, library) in libraries.withIndex()) {
-                        itemsIndexed(library.libraryItems) { index, item ->
-                            Column {
-                                Timber.d(item.title)
-                                BookItem(item)
-                                val showDivider =
-                                    (index != library.libraryItems.size - 1 || libIndex != libraries.size - 1)
-                                if (showDivider) {
-                                    HorizontalDivider()
+                // Add search header as first item
+                item {
+                    SearchHeader(
+                        isSearchActive = isSearchActive,
+                        searchQuery = searchQuery,
+                        onSearchToggle = onSearchToggle
+                    )
+                }
+                
+                libraries?.let { libraryList ->
+                    val hasResults = libraryList.any { it.libraryItems.isNotEmpty() }
+                    
+                    if (isSearchActive && !hasResults && searchQuery.isNotEmpty()) {
+                        // Show "No results found" message in search mode
+                        item {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(20.dp)
+                            ) {
+                                Text(
+                                    text = "No results found",
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.body1
+                                )
+                            }
+                        }
+                    } else {
+                        // Show library items
+                        for ((libIndex, library) in libraryList.withIndex()) {
+                            itemsIndexed(library.libraryItems) { index, item ->
+                                Column {
+                                    Timber.d(item.title)
+                                    BookItem(item)
+                                    val showDivider =
+                                        (index != library.libraryItems.size - 1 || libIndex != libraryList.size - 1)
+                                    if (showDivider) {
+                                        HorizontalDivider()
+                                    }
                                 }
                             }
                         }
