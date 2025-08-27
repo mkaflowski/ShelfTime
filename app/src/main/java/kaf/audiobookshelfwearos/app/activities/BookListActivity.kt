@@ -7,6 +7,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,15 +18,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Divider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
@@ -49,6 +55,7 @@ import kaf.audiobookshelfwearos.app.data.Library
 import kaf.audiobookshelfwearos.app.data.LibraryItem
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import kaf.audiobookshelfwearos.app.viewmodels.ApiViewModel
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 class BookListActivity : ComponentActivity() {
@@ -139,6 +146,9 @@ class BookListActivity : ComponentActivity() {
     @Composable
     private fun Libraries(libraries: List<Library>?) {
         val scalingLazyListState = rememberScalingLazyListState(0)
+        val focusRequester = remember { FocusRequester() }
+        val coroutineScope = rememberCoroutineScope()
+        val scrollSpeedMultiplier = 3.0f // Adjust this value to control scroll speed
 
         Scaffold(
             modifier = Modifier.onGloballyPositioned {},
@@ -156,7 +166,16 @@ class BookListActivity : ComponentActivity() {
                     minTransitionArea = 0.5f,
                     maxTransitionArea = 0.5f
                 ),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onRotaryScrollEvent() {
+                        coroutineScope.launch {
+                            scalingLazyListState.scrollBy(it.verticalScrollPixels * scrollSpeedMultiplier)
+                        }
+                        true
+                    }
+                    .focusRequester(focusRequester)
+                    .focusable(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 libraries?.let {
@@ -175,6 +194,10 @@ class BookListActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
         }
     }
 
