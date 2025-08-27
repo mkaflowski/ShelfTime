@@ -37,6 +37,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,7 +47,18 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.sp
+import kaf.audiobookshelfwearos.app.data.AudiobookDownloadProgress
+import kaf.audiobookshelfwearos.app.data.DownloadProgress
+import kaf.audiobookshelfwearos.app.utils.AudiobookProgressCalculator
+import kaf.audiobookshelfwearos.app.utils.DownloadProgressCalculator
+import androidx.media3.exoplayer.offline.Download
+import androidx.media3.common.C
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumnDefaults
 import androidx.wear.compose.foundation.lazy.itemsIndexed
@@ -164,6 +176,11 @@ class ChapterListActivity : ComponentActivity() {
     private fun AudiobookInfo(
         libraryItem: LibraryItem,
     ) {
+        // Collect download progress from service
+        val downloadProgressFlow = MyDownloadService.getProgressFlow()
+        var trackProgresses by remember { mutableStateOf(mutableStateMapOf<String, DownloadProgress>()) }
+        var audiobookProgress by remember { mutableStateOf<AudiobookDownloadProgress?>(null) }
+
         var isDownloaded by remember {
             mutableStateOf(
                 libraryItem.media.tracks.all { track -> track.isDownloaded(this) }
@@ -180,6 +197,134 @@ class ChapterListActivity : ComponentActivity() {
             mutableStateOf(libraryItem.media.tracks.count { track -> track.isDownloaded(this) })
         }
         val totalTracks = libraryItem.media.tracks.size
+
+        // Listen for progress updates
+        LaunchedEffect(libraryItem.id) {
+            try {
+                Timber.d("Starting to collect download progress for audiobook: ${libraryItem.id}")
+                downloadProgressFlow.collect { trackProgress ->
+                    Timber.d("Received progress update for track: ${trackProgress.trackId}, progress: ${trackProgress.percentComplete}%")
+                    
+                    // Debug: Log all track IDs for this audiobook
+                    val audiobookTrackIds = libraryItem.media.tracks.map { it.id }
+                    Timber.d("Audiobook track IDs: $audiobookTrackIds")
+                    
+                    // Check if this progress update is for one of our tracks
+                    if (libraryItem.media.tracks.any { it.id == trackProgress.trackId }) {
+                        Timber.d("Progress update matches one of our tracks!")
+                        trackProgresses[trackProgress.trackId] = trackProgress
+                        
+                        // Calculate overall audiobook progress
+                        val currentProgresses = trackProgresses.values.toList()
+                        if (currentProgresses.isNotEmpty()) {
+                            audiobookProgress = AudiobookProgressCalculator.calculateAudiobookProgress(
+                                libraryItem, 
+                                currentProgresses
+                            )
+                            Timber.d("Updated audiobook progress: ${audiobookProgress?.overallProgress}%")
+                        }
+                        
+                        // Update download states
+                        downloadedCount = libraryItem.media.tracks.count { track -> 
+                            track.isDownloaded(this@ChapterListActivity) 
+                        }
+                        isDownloading = libraryItem.media.tracks.any { track ->
+                            track.isDownloading(this@ChapterListActivity)
+                        }
+                        isDownloaded = libraryItem.media.tracks.all { track -> 
+                            track.isDownloaded(this@ChapterListActivity) 
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error collecting download progress")
+            }
+        }
+
+        // Periodic progress checker for more frequent updates
+        LaunchedEffect(isDownloading) {
+            while (isDownloading) {
+                try {
+                    // Check progress of all tracks manually
+                    val downloadManager = MyDownloadService.getDownloadManager(this@ChapterListActivity)
+                    var hasActiveDownloads = false
+                    
+                    for (track in libraryItem.media.tracks) {
+                        val download = downloadManager.downloadIndex.getDownload(track.id)
+                        if (download != null && download.state == Download.STATE_DOWNLOADING) {
+                            hasActiveDownloads = true
+                            
+                            // Calculate progress manually
+                            val percentComplete = if (download.percentDownloaded != C.PERCENTAGE_UNSET.toFloat()) {
+                                download.percentDownloaded
+                            } else {
+                                0f
+                            }
+                            
+                            val bytesDownloaded = download.bytesDownloaded
+                            val totalBytes = if (download.contentLength != -1L) {
+                                download.contentLength
+                            } else {
+                                if (percentComplete > 0) {
+                                    (bytesDownloaded / (percentComplete / 100f)).toLong()
+                                } else {
+                                    0L
+                                }
+                            }
+                            
+                            val downloadSpeed = DownloadProgressCalculator.calculateDownloadSpeed(
+                                track.id, 
+                                bytesDownloaded
+                            )
+                            val remainingBytes = totalBytes - bytesDownloaded
+                            val estimatedTime = DownloadProgressCalculator.calculateEstimatedTime(
+                                remainingBytes, 
+                                downloadSpeed
+                            )
+                            
+                            val manualProgress = DownloadProgress(
+                                trackId = track.id,
+                                bytesDownloaded = bytesDownloaded,
+                                totalBytes = totalBytes,
+                                percentComplete = percentComplete,
+                                downloadSpeed = downloadSpeed,
+                                estimatedTimeRemaining = estimatedTime,
+                                state = kaf.audiobookshelfwearos.app.data.DownloadState.DOWNLOADING
+                            )
+                            
+                            trackProgresses[track.id] = manualProgress
+                            Timber.d("Manual progress check for ${track.id}: ${percentComplete}%")
+                        }
+                    }
+                    
+                    // Update audiobook progress if we have active downloads
+                    if (hasActiveDownloads && trackProgresses.isNotEmpty()) {
+                        val currentProgresses = trackProgresses.values.toList()
+                        audiobookProgress = AudiobookProgressCalculator.calculateAudiobookProgress(
+                            libraryItem, 
+                            currentProgresses
+                        )
+                        Timber.d("Manual audiobook progress update: ${audiobookProgress?.overallProgress}%")
+                    }
+                    
+                    // Update download states
+                    downloadedCount = libraryItem.media.tracks.count { track -> 
+                        track.isDownloaded(this@ChapterListActivity) 
+                    }
+                    isDownloading = libraryItem.media.tracks.any { track ->
+                        track.isDownloading(this@ChapterListActivity)
+                    }
+                    isDownloaded = libraryItem.media.tracks.all { track -> 
+                        track.isDownloaded(this@ChapterListActivity) 
+                    }
+                    
+                } catch (e: Exception) {
+                    Timber.e(e, "Error in manual progress check")
+                }
+                
+                delay(2000L) // Check every 2 seconds
+            }
+        }
 
         LaunchedEffect(isDownloading) {
             while (isDownloading) {
@@ -212,9 +357,9 @@ class ChapterListActivity : ComponentActivity() {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
+                // Download/Delete button
                 IconButton(onClick = {
                     if (isDownloaded) {
-                        isDownloaded = false
                         Toast.makeText(
                             this@ChapterListActivity,
                             "Audiobook deleted",
@@ -226,6 +371,9 @@ class ChapterListActivity : ComponentActivity() {
                                 track
                             )
                         }
+                        // Clear progress tracking
+                        trackProgresses.clear()
+                        audiobookProgress = null
                     } else {
                         Toast.makeText(
                             this@ChapterListActivity,
@@ -239,21 +387,69 @@ class ChapterListActivity : ComponentActivity() {
                                 track
                             )
                         }
-                        isDownloading = true
                     }
                 }) {
                     Icon(
                         tint = Color.Gray,
-                        imageVector = if (isDownloading) Icons.Filled.Downloading else (if (isDownloaded) Icons.Filled.Delete else Icons.Filled.Download),
-                        contentDescription = if (isDownloaded) "Download" else "Delete"
+                        imageVector = when {
+                            isDownloading -> Icons.Filled.Downloading
+                            isDownloaded -> Icons.Filled.Delete
+                            else -> Icons.Filled.Download
+                        },
+                        contentDescription = if (isDownloaded) "Delete" else "Download"
                     )
                 }
 
-                if (isDownloading)
-                    Column {
-                        Text(text = "Downloading...",fontSize = 8.sp, color = Color.Gray)
-                        Text(text = "$downloadedCount / $totalTracks",fontSize = 10.sp, color = Color.Gray)
+                // Progress information (optimized for circular screen)
+                if (isDownloading) {
+                    val currentProgress = audiobookProgress
+                    if (currentProgress != null) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            // Circular progress indicator (fits well on round screens)
+                            Box(
+                                modifier = Modifier.size(40.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    progress = (currentProgress.overallProgress / 100f).coerceIn(0f, 1f),
+                                    modifier = Modifier.fillMaxSize(),
+                                    strokeWidth = 3.dp,
+                                    color = Color.Green
+                                )
+                                Text(
+                                    text = if (currentProgress.overallProgress < 0.1f) "<1%" else "${currentProgress.overallProgress.toInt()}%",
+                                    fontSize = 8.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                            
+                            // Speed and time remaining (compact for small screens)
+                            if (currentProgress.averageDownloadSpeed > 0) {
+                                Text(
+                                    text = "${DownloadProgressCalculator.formatBytes(currentProgress.averageDownloadSpeed)}/s",
+                                    fontSize = 7.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                            
+                            if (currentProgress.estimatedTimeRemaining != Long.MAX_VALUE && currentProgress.estimatedTimeRemaining > 0) {
+                                Text(
+                                    text = DownloadProgressCalculator.formatTime(currentProgress.estimatedTimeRemaining),
+                                    fontSize = 7.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    } else {
+                        // Fallback to simple track count display
+                        Column {
+                            Text(text = "Downloading...", fontSize = 8.sp, color = Color.Gray)
+                            Text(text = "$downloadedCount / $totalTracks", fontSize = 10.sp, color = Color.Gray)
+                        }
                     }
+                }
 
                 IconButton(onClick = {
                     viewModel.sync(libraryItem)
@@ -265,6 +461,7 @@ class ChapterListActivity : ComponentActivity() {
                     )
                 }
             }
+            
             PlayButton(libraryItem)
             Spacer(modifier = Modifier.height(10.dp))
             HorizontalDivider(

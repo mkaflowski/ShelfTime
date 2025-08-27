@@ -22,8 +22,14 @@ import androidx.media3.exoplayer.scheduler.PlatformScheduler
 import androidx.media3.exoplayer.scheduler.Requirements
 import androidx.media3.exoplayer.scheduler.Scheduler
 import kaf.audiobookshelfwearos.R
+import kaf.audiobookshelfwearos.app.data.DownloadProgress
+import kaf.audiobookshelfwearos.app.data.DownloadState
 import kaf.audiobookshelfwearos.app.data.Track
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
+import kaf.audiobookshelfwearos.app.utils.DownloadProgressCalculator
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import timber.log.Timber
 import java.io.File
 import java.util.concurrent.Executor
@@ -81,6 +87,14 @@ class MyDownloadService : DownloadService(
         private val downloadManagerLock = Any()
         private val databaseProviderLock = Any()
         private val downloadCacheLock = Any()
+        
+        // Progress flow for emitting download progress updates
+        private val progressUpdateFlow = MutableSharedFlow<DownloadProgress>(
+            replay = 1,
+            extraBufferCapacity = 10
+        )
+        
+        fun getProgressFlow(): SharedFlow<DownloadProgress> = progressUpdateFlow.asSharedFlow()
 
         fun getDownloadCache(context: Context): Cache {
             synchronized(downloadCacheLock) {
@@ -179,8 +193,18 @@ class MyDownloadService : DownloadService(
                         finalException: Exception?
                     ) {
                         super.onDownloadChanged(downloadManager, download, finalException)
+                        
+                        // Calculate and emit progress
+                        val progress = calculateProgress(download)
+                        Timber.d("Calculated progress for ${download.request.id}: ${progress.percentComplete}%, speed: ${progress.downloadSpeed}")
+                        
+                        val emitted = progressUpdateFlow.tryEmit(progress)
+                        Timber.d("Progress emission result: $emitted")
+                        
                         if (download.state == Download.STATE_COMPLETED) {
                             Timber.i("Download completed: " + download.request.id)
+                            // Clear speed history for completed downloads
+                            DownloadProgressCalculator.clearSpeedHistory(download.request.id)
                         }
 
                         Timber.d("onDownloadChanged ${download.state}")
@@ -200,6 +224,8 @@ class MyDownloadService : DownloadService(
                     ) {
                         super.onDownloadRemoved(downloadManager, download)
                         Timber.d("onDownloadRemoved")
+                        // Clear speed history for removed downloads
+                        DownloadProgressCalculator.clearSpeedHistory(download.request.id)
                     }
 
                     override fun onIdle(downloadManager: DownloadManager) {
@@ -233,6 +259,62 @@ class MyDownloadService : DownloadService(
                 })
 
                 return downloadManager
+            }
+        }
+        
+        private fun calculateProgress(download: Download): DownloadProgress {
+            val percentComplete = if (download.percentDownloaded != C.PERCENTAGE_UNSET.toFloat()) {
+                download.percentDownloaded
+            } else {
+                0f
+            }
+            
+            val bytesDownloaded = download.bytesDownloaded
+            val totalBytes = if (download.contentLength != -1L) {
+                download.contentLength
+            } else {
+                // Estimate total bytes based on current progress if available
+                if (percentComplete > 0) {
+                    (bytesDownloaded / (percentComplete / 100f)).toLong()
+                } else {
+                    0L
+                }
+            }
+            
+            val downloadSpeed = DownloadProgressCalculator.calculateDownloadSpeed(
+                download.request.id, 
+                bytesDownloaded
+            )
+            val remainingBytes = totalBytes - bytesDownloaded
+            val estimatedTime = DownloadProgressCalculator.calculateEstimatedTime(
+                remainingBytes, 
+                downloadSpeed
+            )
+            
+            Timber.d("Progress calculation for ${download.request.id}: " +
+                    "percent=$percentComplete%, bytes=$bytesDownloaded/$totalBytes, " +
+                    "speed=$downloadSpeed, eta=$estimatedTime")
+            
+            return DownloadProgress(
+                trackId = download.request.id,
+                bytesDownloaded = bytesDownloaded,
+                totalBytes = totalBytes,
+                percentComplete = percentComplete,
+                downloadSpeed = downloadSpeed,
+                estimatedTimeRemaining = estimatedTime,
+                state = mapDownloadState(download.state)
+            )
+        }
+        
+        private fun mapDownloadState(downloadState: Int): DownloadState {
+            return when (downloadState) {
+                Download.STATE_QUEUED -> DownloadState.QUEUED
+                Download.STATE_DOWNLOADING -> DownloadState.DOWNLOADING
+                Download.STATE_COMPLETED -> DownloadState.COMPLETED
+                Download.STATE_FAILED -> DownloadState.FAILED
+                Download.STATE_REMOVING -> DownloadState.CANCELLED
+                Download.STATE_RESTARTING -> DownloadState.DOWNLOADING
+                else -> DownloadState.QUEUED
             }
         }
 
