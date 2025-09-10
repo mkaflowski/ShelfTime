@@ -405,6 +405,7 @@ class ChapterListActivity : ComponentActivity() {
                     val currentProgress = audiobookProgress
                     if (currentProgress != null) {
                         Column(
+                            modifier = Modifier.padding(5.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             // Circular progress indicator (fits well on round screens)
@@ -414,7 +415,7 @@ class ChapterListActivity : ComponentActivity() {
                             ) {
                                 CircularProgressIndicator(
                                     progress = (currentProgress.overallProgress / 100f).coerceIn(0f, 1f),
-                                    modifier = Modifier.fillMaxSize(),
+                                    modifier = Modifier.fillMaxSize().padding(5.dp),
                                     strokeWidth = 3.dp,
                                     color = Color.Green
                                 )

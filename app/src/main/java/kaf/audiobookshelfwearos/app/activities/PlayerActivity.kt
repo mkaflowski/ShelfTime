@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import androidx.activity.ComponentActivity
@@ -28,7 +29,6 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -48,7 +48,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.InlineSlider
 import androidx.wear.compose.material.InlineSliderDefaults
@@ -257,7 +256,7 @@ class PlayerActivity : ComponentActivity() {
                         "$packageName.ACTION_UPDATE_METADATA" -> {
                             intent.getStringExtra("CHAPTER_TITLE")?.let {
                                 chapterTitle = it
-                                Timber.d("chapterTitle = " + chapterTitle)
+                                Timber.d("chapterTitle = %s", chapterTitle)
                             }
                         }
                     }
@@ -269,7 +268,11 @@ class PlayerActivity : ComponentActivity() {
                 addAction("$packageName.ACTION_PAUSED")
                 addAction("$packageName.ACTION_UPDATE_METADATA")
             }
-            this@PlayerActivity.registerReceiver(playerReceiver, filter)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                this@PlayerActivity.registerReceiver(playerReceiver, filter, RECEIVER_EXPORTED)
+            } else {
+                this@PlayerActivity.registerReceiver(playerReceiver, filter)
+            }
             playerService?.updateUIMetadata()
 
             onDispose {
