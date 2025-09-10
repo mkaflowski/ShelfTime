@@ -97,6 +97,7 @@ dependencies {
     implementation ("androidx.wear:wear-ongoing:1.0.0")
     // Includes LocusIdCompat and new Notification categories for Ongoing Activity.
     implementation ("androidx.core:core:1.6.0")
+    implementation("androidx.wear:wear-input:1.2.0-beta01")
 
     androidTestImplementation(platform("androidx.compose:compose-bom:2023.08.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
