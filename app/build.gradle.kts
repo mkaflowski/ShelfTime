@@ -14,9 +14,9 @@ android {
     defaultConfig {
         applicationId = "kaf.audiobookshelfwearos"
         minSdk = 26
-        targetSdk = 33
-        versionCode = 16
-        versionName = "1.11"
+        targetSdk = 36
+        versionCode = 18
+        versionName = "1.13"
         vectorDrawables {
             useSupportLibrary = true
         }

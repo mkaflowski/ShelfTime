@@ -11,7 +11,6 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.widget.Button
 import android.widget.CheckBox
-import android.widget.CompoundButton
 import android.widget.EditText
 import androidx.activity.ComponentActivity
 import androidx.activity.viewModels
@@ -22,7 +21,6 @@ import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import kaf.audiobookshelfwearos.app.viewmodels.ApiViewModel
 import kaf.audiobookshelfwearos.databinding.ActivityLoginBinding
 import timber.log.Timber
-import java.net.UnknownHostException
 import kotlin.reflect.KMutableProperty1
 
 
