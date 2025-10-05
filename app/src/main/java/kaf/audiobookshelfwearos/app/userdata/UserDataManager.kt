@@ -17,6 +17,8 @@ class UserDataManager(context: Context) {
         private const val KEY_TOKEN = "token"
         private const val KEY_USERID = "userid"
         private const val KEY_OFFLINEMODE = "offlinemode"
+        private const val KEY_SMART_DELETE_ENABLED = "smart_delete_enabled"
+        private const val KEY_SMART_DELETE_MAX_DOWNLOADS = "smart_delete_max_downloads"
     }
 
     private val masterKey = MasterKey.Builder(context)
@@ -62,6 +64,14 @@ class UserDataManager(context: Context) {
     var offlineMode: Boolean
         get() = sharedPreferences.getBoolean(KEY_OFFLINEMODE, false)
         set(value) = sharedPreferences.edit().putBoolean(KEY_OFFLINEMODE, value).apply()
+
+    var smartDeleteEnabled: Boolean
+        get() = sharedPreferences.getBoolean(KEY_SMART_DELETE_ENABLED, true)
+        set(value) = sharedPreferences.edit().putBoolean(KEY_SMART_DELETE_ENABLED, value).apply()
+
+    var smartDeleteMaxDownloads: Int
+        get() = sharedPreferences.getInt(KEY_SMART_DELETE_MAX_DOWNLOADS, 5)
+        set(value) = sharedPreferences.edit().putInt(KEY_SMART_DELETE_MAX_DOWNLOADS, value).apply()
 
     fun clearUserData() {
         sharedPreferences.edit().clear().apply()

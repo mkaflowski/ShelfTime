@@ -52,6 +52,9 @@
         <activity
             android:name=".app.activities.PlayerActivity"
             android:exported="false" />
+        <activity
+            android:name=".app.activities.SettingsActivity"
+            android:exported="false" />
 
         <receiver
             android:name="androidx.media3.session.MediaButtonReceiver"
