@@ -27,6 +27,7 @@ import kaf.audiobookshelfwearos.app.data.DownloadState
 import kaf.audiobookshelfwearos.app.data.Track
 import kaf.audiobookshelfwearos.app.userdata.UserDataManager
 import kaf.audiobookshelfwearos.app.utils.DownloadProgressCalculator
+import kaf.audiobookshelfwearos.app.utils.SmartDeleteManager
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -205,6 +206,10 @@ class MyDownloadService : DownloadService(
                             Timber.i("Download completed: " + download.request.id)
                             // Clear speed history for completed downloads
                             DownloadProgressCalculator.clearSpeedHistory(download.request.id)
+                            
+                            // Trigger smart delete after download completion
+                            val smartDeleteManager = SmartDeleteManager(context)
+                            smartDeleteManager.triggerSmartDeleteAfterDownload()
                         }
 
                         Timber.d("onDownloadChanged ${download.state}")
