@@ -11,6 +11,8 @@ import android.os.IBinder
 import androidx.annotation.OptIn
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -79,9 +81,16 @@ class PlayerService : MediaSessionService() {
         fun getService(): PlayerService = this@PlayerService
     }
 
-    override fun onBind(intent: Intent?): IBinder {
-        super.onBind(intent)
-        return binder
+    override fun onBind(intent: Intent?): IBinder? {
+        // The app's own UI binds without an action and uses the local binder. Any other binding
+        // (system media controls, Bluetooth, Wear OS, Android Auto) must be served by the Media3
+        // binder, otherwise external controllers can never reach the session while the app is in
+        // the background.
+        return if (intent?.action == null) {
+            binder
+        } else {
+            super.onBind(intent)
+        }
     }
 
     @UnstableApi
@@ -101,7 +110,25 @@ class PlayerService : MediaSessionService() {
         networkConnectivityManager.startMonitoring()
         
         createPlayer()
-        mediaSession = MediaSession.Builder(this, exoPlayer).build()
+
+        val sessionActivityPendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, PlayerActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        mediaSession = MediaSession.Builder(this, exoPlayer)
+            .setSessionActivity(sessionActivityPendingIntent)
+            .build()
+            .also { session ->
+                // Registering the session with the service is what lets Media3's
+                // MediaNotificationManager manage the media notification and promote this service
+                // to a mediaPlayback foreground service while playing. Without it the session is
+                // only added once an external MediaController connects, which Wear OS does not do
+                // on its own, so background playback gets muted/killed by the system (AudioHardening
+                // on Android 16).
+                addSession(session)
+            }
     }
 
     private fun createChannel(context: Context) {
@@ -208,7 +235,18 @@ class PlayerService : MediaSessionService() {
 
     @UnstableApi
     private fun createPlayer() {
-        exoPlayer = ExoPlayer.Builder(this).build()
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
+            .build()
+
+        exoPlayer = ExoPlayer.Builder(this)
+            .setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
+            .setHandleAudioBecomingNoisy(true)
+            // Keeps the CPU/Wi-Fi awake while streaming so playback does not stall when the
+            // watch screen turns off or the app is in the background.
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .build()
 
         exoPlayer.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -413,7 +451,7 @@ class PlayerService : MediaSessionService() {
 
     // The user dismissed the app from the recent tasks
     override fun onTaskRemoved(rootIntent: Intent?) {
-        val player = mediaSession?.player!!
+        val player = mediaSession?.player ?: return
         if (!player.playWhenReady
             || player.mediaItemCount == 0
             || player.playbackState == Player.STATE_ENDED
